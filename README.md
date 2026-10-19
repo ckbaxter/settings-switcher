@@ -29,10 +29,24 @@ docker compose --profile editor up -d --build              # Alternative: Editor
 
 In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SS_ALLOWED_HOSTS` (Fritzbox-IP) stehen.
 `record` und `editor` benutzen denselben Port, starte nur einen von beiden.
+Starte `run.sh` als normaler Benutzer (UID wie `SS_UID`), nicht mit `sudo` (siehe Fehlersuche).
 
-**Speichern schlägt mit Fehler 500 fehl?** Dann darf der Container-Benutzer nicht in `./profiles`
-schreiben. Setze in `.env` `SS_UID`/`SS_GID` auf die Werte von `id -u` / `id -g` des Benutzers, dem
-`./profiles` gehört (oder `chown` das Verzeichnis), und starte den Dienst mit `docker compose … up -d` neu.
+### Zwei Host-Listen, nicht verwechseln
+
+| | `EDITOR_ALLOWED_HOSTS` | `SS_ALLOWED_HOSTS` |
+| --- | --- | --- |
+| Datei | `.env` | `runner.env` und `.env` (gleicher Wert) |
+| Wer prüft | der Editor | der Browser im Runner und im Recorder |
+| Frage | Unter welchem Namen darf man den **Editor** aufrufen? | Welche Webseiten darf der **Browser** besuchen? |
+| Inhalt | Adresse des Docker-Hosts, wie in der Browser-Adresszeile (z. B. `localhost,192.168.1.50`) | Adresse der Fritzbox (z. B. `192.168.178.1`) |
+| Schützt vor | fremden Webseiten, die den Editor über einen umgebogenen Domainnamen ansprechen (DNS-Rebinding) | Zugangsdaten oder Klicks, die an einen fremden Host gehen |
+
+- Beide Listen enthalten nur Hostnamen oder IPs, kommagetrennt, ohne `http://`, Port oder Pfad. Es sind reine
+  Textvergleiche: Eine IP deckt den Hostnamen dazu nicht ab und umgekehrt.
+- `EDITOR_ALLOWED_HOSTS` ist **nicht** die Adresse deines Endgeräts, sondern die des Servers, die du in den
+  Browser eintippst. Wer den Editor erreichen darf, steuern `EDITOR_BIND`, die Firewall und das Token.
+- `SS_ALLOWED_HOSTS` kommt nur aus der Umgebung, nie aus dem Profil. Nimm die IP statt `fritz.box`, und
+  `base_url` im Profil muss dazu passen.
 
 ## Sicherheitsmodell
 
@@ -96,8 +110,21 @@ Außerdem sinnvoll:
 | `wait_for` / `wait_ms` | `selector` / `value` | Warten auf Element / feste Zeit (ms, max. 30000) |
 | `expect_visible` / `expect_text` / `expect_checked` / `expect_unchecked` | `selector` (, `value`) | Erfolgsprüfung. Schlägt sie fehl, endet der Lauf mit Exit 1 |
 
-Ein Lauf gilt nur als erfolgreich, wenn alle Schritte durchlaufen. Beende jedes Profil deshalb
-mit einer `expect_*`-Prüfung, die den gewünschten Zustand bestätigt.
+Ein Lauf gilt als erfolgreich, wenn alle Schritte durchlaufen. Ohne `expect_*`-Prüfung heißt das nur,
+dass nichts abgebrochen ist, nicht dass die Änderung wirksam wurde. Ein Schritt, der fehlschlägt, beendet
+den Lauf sofort (Exit 1, Screenshot `…-fehler.png`). Spätere Schritte wie der Logout entfallen dann; die
+Sitzung auf der Fritzbox läuft von selbst ab.
+
+- Setze die Prüfung **nach dem Übernehmen** und vor den Logout. Sie darf mitten im Ablauf stehen.
+- Ein `expect_*` direkt nach dem Klick prüft nur den Formularzustand im Browser. Verlässlich ist die
+  Gegenprobe nach einem Neuladen (Regel oder Seite erneut öffnen, dann prüfen).
+- Gib der Seite nach „Übernehmen“ etwas Zeit (`wait_ms` oder `wait_for`), bevor der Logout den Browser schließt.
+- `check`/`uncheck` setzen einen festen Zustand und tun nichts, wenn er schon so ist. Die Aufzeichnung
+  schreibt, was beim Aufzeichnen passiert ist; ein Profil „an“ braucht `check`, ein Profil „aus“ `uncheck`.
+  Beide unterscheiden sich oft nur in diesem einen Schritt.
+- Ein Logout ist nicht Pflicht (der Container verschwindet, die Sitzung auf der Box läuft aber noch bis zum
+  Timeout), aber sauberer, besonders bei häufigen Läufen.
+
 Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 
 ## Ablauf aufzeichnen (Live-Browser im Editor)
@@ -118,8 +145,8 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 | „Prüfen“-Knöpfe, dann auf ein Element klicken | `expect_visible` / `expect_text` / `expect_checked` / `expect_unchecked` / `wait_for` |
 
 4. **Aufnahme beenden**, Schritte prüfen (Reihenfolge, Selektoren, `TODO`-Werte), **Speichern**.
-5. Mit `./run.sh -s <profil>` testen. Beende jeden Ablauf mit einer `expect_*`-Prüfung, die den
-   gewünschten Zustand bestätigt, sonst meldet der Lauf Erfolg, ohne etwas zu prüfen.
+5. Mit `./run.sh -s <profil>` testen und in der Fritzbox prüfen, ob die Änderung wirklich da ist. Bau nach
+   dem Übernehmen eine `expect_*`-Prüfung ein (siehe oben), sonst meldet der Lauf Erfolg, ohne etwas zu prüfen.
 
 Wichtig:
 
@@ -134,24 +161,32 @@ Wichtig:
 `locator("#abc")` → `"selector": "#abc"`, `get_by_role("button", name="Anmelden")` →
 `"selector": "role=button[name=\"Anmelden\"]"`, `get_by_text("Übernehmen", exact=True)` → Operation `click_text`.
 
+## Fehlersuche
+
+| Symptom | Ursache und Abhilfe |
+| --- | --- |
+| Editor: „Host nicht erlaubt.“ | Der Name aus der Browser-Adresszeile (ohne Port) fehlt in `EDITOR_ALLOWED_HOSTS`. Eintrag in `.env` ergänzen, Zeile nicht auskommentiert lassen, mit `docker compose … up -d` neu anlegen (ein Neustart liest `.env` nicht neu). |
+| Speichern: „Keine Schreibrechte …“ / Fehler 500 | Der Container-Benutzer darf nicht in `./profiles` schreiben. `SS_UID`/`SS_GID` in `.env` auf `id -u` / `id -g` des Besitzers setzen (oder `chown`), Dienst neu anlegen. |
+| `run.sh`: „Profil … nicht lesbar: Permission denied“ | `./profiles` braucht `755`, die Profile `644` (neuere Editor-Versionen speichern so). Der Runner läuft mit `--cap-drop ALL`, daher kann auch root fremde Dateien nur mit passenden Rechten lesen. `run.sh` besser nicht mit `sudo` starten. Nach einem Update `docker compose --profile record up -d --build`. |
+| Lauf „ok“, aber nichts geändert | Meist falsche Richtung (`uncheck` statt `check` oder der Zustand war schon so), zu früher Logout oder fehlende Gegenprobe. `./run.sh -s` zeigt Screenshots pro Schritt. |
+| Schritt bricht ab | Selektor nicht (mehr) eindeutig, z. B. nach FRITZ!OS-Update, oder Element erscheint erst nach dem Laden (`wait_for` davor). Den Schritt neu aufzeichnen. |
+
 ## Status und Grenzen
 
-Getestet (`python3 -m pytest`): Schema-Validierung, Host-Prüfung, Variablen, Editor-API,
+Automatisch getestet (`python3 -m pytest`): Schema-Validierung, Host-Prüfung, Variablen, Editor-API,
 Editor-Oberfläche im echten Browser (inkl. XSS- und CSP-Prüfung), Läufe des Runners in Chromium
-gegen eine lokale Testseite, der Live-Recorder (Selektoren, Passwortbehandlung, WebSocket-Absicherung)
-und der ganze Weg „im Editor aufzeichnen → speichern → mit dem Runner abspielen“ gegen eine lokale Testseite.
+gegen eine lokale Testseite, der Live-Recorder (Selektoren, Passwortbehandlung, Scrollen,
+WebSocket-Absicherung) und der ganze Weg „im Editor aufzeichnen → speichern → mit dem Runner abspielen“
+gegen eine lokale Testseite.
 
-**Noch nicht getestet:**
+Manuell getestet (vom Betreiber bestätigt): Docker-Build der Images, `run.sh` mit echtem `docker run`
+und Aufzeichnen sowie Abspielen gegen eine echte Fritzbox 7590 mit FRITZ!OS 8.25 (Portfreigabe an/aus).
+Der Docker-Teil läuft nicht in den automatischen Tests.
 
-- Der Docker-Build der Images und `run.sh` mit echtem `docker run` (im Entwicklungsumfeld war
-  keine Registry erreichbar). Das Image `mcr.microsoft.com/playwright/python:v1.56.0-noble` und die
-  Härtungs-Flags solltest du beim ersten Lauf prüfen. Falls Chromium im Container wegen
-  `--read-only` oder `--cap-drop` nicht startet, steht der Fehler direkt in der Ausgabe.
-- Aufzeichnen und Abspielen gegen eine echte Fritzbox. Die Profile enthalten bewusst keine geratenen
-  Selektoren. Ob die Heuristik auf der FRITZ!OS-8.25-Oberfläche (die viel dynamisch nachlädt)
-  überall eindeutige Selektoren findet, zeigt erst die erste Aufnahme.
-- Ob bei deiner FRITZ!OS-Version für Portfreigaben eine zusätzliche Bestätigung verlangt wird
-  (laut deiner Angabe nicht).
+Grenzen:
+
+- Selektoren sind eine Heuristik und können nach FRITZ!OS-Updates brechen (siehe Fehlersuche).
+- Die Profile sind nur so zuverlässig wie ihre Prüfungen; ein Lauf ohne `expect_*` beweist keine Wirkung.
 
 Bewusst nicht enthalten: Webhook-Endpunkt, Zeitplan, Bearbeiten laufender Aufnahmen. Aufruf aus Home
 Assistant oder Cron geht über `run.sh <profil>` auf dem Docker-Host (z. B. per SSH oder
