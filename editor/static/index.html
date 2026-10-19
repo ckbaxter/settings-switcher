@@ -38,10 +38,54 @@
         <input id="f-timeout" type="number" min="1000" max="60000" step="500">
       </div>
 
+      <div id="recorder" class="recorder" hidden>
+        <h3>Aufnahme</h3>
+        <p class="hint">
+          Klicke im Live-Browser durch den Ablauf. Jede Aktion erscheint unten als Schritt.
+          Der Browser erreicht nur die erlaubten Hosts. Passwörter werden nie gespeichert.
+        </p>
+        <div class="rec-bar">
+          <label for="rec-path">Startpfad</label>
+          <input id="rec-path" value="/" maxlength="200">
+          <button id="rec-start" type="button" class="primary">Aufnahme starten</button>
+          <button id="rec-stop" type="button" hidden>Aufnahme beenden</button>
+        </div>
+        <div id="rec-live" hidden>
+          <div id="rec-picks" class="rec-bar">
+            <span class="hint">Prüfung setzen, dann ins Bild klicken:</span>
+            <button type="button" data-kind="expect_text">Text</button>
+            <button type="button" data-kind="expect_visible">Sichtbar</button>
+            <button type="button" data-kind="expect_checked">Aktiviert</button>
+            <button type="button" data-kind="expect_unchecked">Nicht aktiviert</button>
+            <button type="button" data-kind="wait_for">Warten auf</button>
+          </div>
+          <div class="viewer"><img id="live" alt="Live-Ansicht des Browsers" draggable="false"></div>
+          <div id="rec-url" class="hint"></div>
+          <div id="rec-note" class="msg warn"></div>
+          <div id="rec-select" class="rec-bar" hidden></div>
+          <form id="rec-text-form" class="rec-bar" autocomplete="off">
+            <input id="rec-text" type="password" maxlength="500" autocomplete="off"
+                   placeholder="Text für das ausgewählte Feld">
+            <select id="rec-as" aria-label="Speichern als">
+              <option value="auto">Speichern: automatisch</option>
+              <option value="user">als ${SS_USER}</option>
+              <option value="password">als ${SS_PASSWORD}</option>
+              <option value="literal">Text wörtlich</option>
+            </select>
+            <label><input id="rec-show" type="checkbox"> anzeigen</label>
+            <button type="submit">Eintragen</button>
+            <button type="button" data-key="Enter">Enter</button>
+            <button type="button" data-key="Tab">Tab</button>
+            <button type="button" data-key="Escape">Esc</button>
+          </form>
+        </div>
+      </div>
+
       <h3>Schritte</h3>
       <p class="hint">
-        Selektoren zeichnest du mit <code>playwright codegen</code> auf und fügst sie hier ein (siehe README).
-        Passwörter nie eintragen, nur <code>${SS_PASSWORD}</code> bei „fill“.
+        Schritte entstehen im Aufnahme-Modus (falls aktiv) oder per Hand (Selektoren z. B. mit
+        <code>playwright codegen</code>, siehe README). Passwörter nie eintragen, nur
+        <code>${SS_PASSWORD}</code> bei „fill“.
       </p>
       <ol id="steps" class="steps"></ol>
       <button id="add-step" type="button">+ Schritt</button>

@@ -42,7 +42,7 @@ def _is_http_url(value):
     return isinstance(value, str) and re.match(r"^https?://[^\s/]+", value) is not None
 
 
-def _is_plain_path(value):
+def is_plain_path(value):
     """Pfad auf demselben Host. '//host' und Backslashes würden einen anderen Host ansprechen."""
     return (
         isinstance(value, str)
@@ -126,7 +126,7 @@ def _validate_step(i, step):
         if op == "wait_ms":
             if not value.isdigit() or not 0 < int(value) <= MAX_WAIT_MS:
                 errors.append(f"{where}: wait_ms braucht eine Zahl von 1 bis {MAX_WAIT_MS}.")
-        if op == "goto" and not (_is_plain_path(value) or _is_http_url(value)):
+        if op == "goto" and not (is_plain_path(value) or _is_http_url(value)):
             errors.append(f"{where}: goto braucht einen Pfad mit / am Anfang (nicht //) oder eine http(s)-URL.")
         variables = VAR_RE.findall(value)
         if variables and op != "fill":

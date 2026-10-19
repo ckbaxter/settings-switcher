@@ -137,3 +137,11 @@ button.danger { color: var(--danger); border-color: var(--danger); }
 .msg.error { color: var(--danger); }
 .msg.ok { color: var(--ok); }
 .msg.warn { color: var(--warn); }
+
+.recorder { margin-top: 8px; }
+.rec-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.rec-bar[hidden], #rec-live[hidden] { display: none; }
+.rec-bar input[type="password"], .rec-bar input[type="text"] { flex: 1 1 200px; }
+.rec-bar button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.viewer { overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: #000; }
+.viewer img { display: block; width: 100%; height: auto; cursor: crosshair; user-select: none; }

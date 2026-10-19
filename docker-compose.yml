@@ -1,7 +1,13 @@
-# Nur der Profil-Editor. Der Runner wird bei Bedarf von run.sh gestartet.
+# Der Runner wird bei Bedarf von run.sh gestartet, hier stehen nur die Editor-Dienste.
+#
+# editor   = Profil-Editor ohne Browser (kein Netzzugriff auf die Fritzbox nötig)
 #   Start:  docker compose --profile editor up -d --build
 #   Stopp:  docker compose --profile editor down
-# Der Editor bekommt bewusst keine Fritzbox-Zugangsdaten (die stehen nur in runner.env).
+# recorder = Editor mit Live-Browser zum Aufzeichnen. Erreicht die Fritzbox, deshalb nur bei Bedarf starten.
+#   Start:  docker compose --profile record up -d --build
+#   Stopp:  docker compose --profile record down
+# Beide Dienste teilen sich Port und Namen, starte nur einen von beiden.
+# Keiner bekommt Fritzbox-Zugangsdaten (die stehen nur in runner.env).
 services:
   editor:
     profiles: ["editor"]
@@ -28,3 +34,36 @@ services:
       - no-new-privileges:true
     mem_limit: 256m
     pids_limit: 128
+
+  recorder:
+    profiles: ["record"]
+    build:
+      context: .
+      dockerfile: recorder/Dockerfile
+    image: settings-switcher-recorder
+    container_name: settings-switcher-editor
+    restart: "no"
+    init: true
+    user: "${SS_UID:-1000}:${SS_GID:-1000}"
+    ports:
+      - "${EDITOR_BIND:-127.0.0.1}:${EDITOR_PORT:-8080}:8080"
+    environment:
+      EDITOR_TOKEN: ${EDITOR_TOKEN:?EDITOR_TOKEN in .env setzen (mindestens 16 Zeichen)}
+      EDITOR_ALLOWED_HOSTS: ${EDITOR_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      RECORDER_ENABLED: "1"
+      SS_ALLOWED_HOSTS: ${SS_ALLOWED_HOSTS:?SS_ALLOWED_HOSTS in .env setzen (Fritzbox-IP)}
+      SS_IGNORE_HTTPS_ERRORS: ${SS_IGNORE_HTTPS_ERRORS:-0}
+      REC_MAX_SECONDS: ${REC_MAX_SECONDS:-600}
+      REC_IDLE_SECONDS: ${REC_IDLE_SECONDS:-180}
+    volumes:
+      - ./profiles:/profiles
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 512
+    shm_size: 256m

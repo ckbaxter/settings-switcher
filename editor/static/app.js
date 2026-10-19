@@ -180,6 +180,7 @@
   }
 
   async function openProfile(name) {
+    if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
     const res = await api("GET", "/api/profiles/" + encodeURIComponent(name));
     if (!res.ok) {
       say(apiError(res));
@@ -207,6 +208,7 @@
     $("editor").hidden = true;
     say([]);
     await loadList(null);
+    await initRecorder();
   }
 
   async function validate() {
@@ -244,10 +246,192 @@
     loadList(null);
   }
 
-  $("token-form").addEventListener("submit", connect);
-  $("new-profile").addEventListener("click", () =>
-    show({ name: "", description: "", base_url: "http://", timeout_ms: 15000, steps: [{ op: "goto", value: "/" }] }, true)
+
+  // ---------- Aufnahme-Modus ----------
+  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null };
+
+  function note(kind, text) {
+    const box = $("rec-note");
+    box.className = "msg " + kind;
+    box.textContent = text;
+  }
+
+  function setRecording(active) {
+    rec.active = active;
+    $("rec-start").hidden = active;
+    $("rec-stop").hidden = !active;
+    $("rec-live").hidden = !active;
+    $("rec-path").disabled = active;
+    if (!active) {
+      setPick(null);
+      if (rec.frame) URL.revokeObjectURL(rec.frame);
+      rec.frame = null;
+      $("live").removeAttribute("src");
+      $("rec-select").hidden = true;
+    }
+  }
+
+  function setPick(kind) {
+    rec.pick = kind;
+    document.querySelectorAll("#rec-picks button").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
+  }
+
+  function send(message) {
+    if (rec.ws && rec.ws.readyState === WebSocket.OPEN) rec.ws.send(JSON.stringify(message));
+  }
+
+  function offerSelect(event) {
+    const box = $("rec-select");
+    box.replaceChildren();
+    const select = el("select", { "aria-label": "Eintrag wählen" });
+    select.appendChild(el("option", { value: "", text: "Eintrag wählen …" }));
+    event.options.forEach((o) => select.appendChild(el("option", { value: o.value || o.label, text: o.label || o.value })));
+    select.addEventListener("change", () => {
+      if (select.value) send({ t: "select", selector: event.selector, value: select.value });
+      box.hidden = true;
+    });
+    const cancel = el("button", { type: "button", text: "Abbrechen" });
+    cancel.addEventListener("click", () => (box.hidden = true));
+    box.appendChild(select);
+    box.appendChild(cancel);
+    box.hidden = false;
+  }
+
+  function onRecEvent(event) {
+    if (event.t === "hello") {
+      rec.viewport = event.viewport;
+      $("rec-url").textContent = event.url || "";
+    } else if (event.t === "step") {
+      steps.push({ op: event.step.op, selector: event.step.selector || "", value: event.step.value || "", comment: event.step.comment || "" });
+      renderSteps();
+    } else if (event.t === "url") {
+      $("rec-url").textContent = event.url;
+    } else if (event.t === "blocked") {
+      note("warn", "Anfrage an nicht erlaubten Host blockiert: " + event.host);
+    } else if (event.t === "dialog") {
+      note("warn", "Die Seite zeigte einen Dialog (wird verworfen): " + event.message);
+    } else if (event.t === "popup") {
+      note("warn", "Ein Popup wurde geschlossen.");
+    } else if (event.t === "error") {
+      rec.lastError = event.message;
+      note("error", event.message);
+    } else if (event.t === "select") {
+      offerSelect(event);
+    } else if (event.t === "closed") {
+      setRecording(false);
+      say([{ kind: "warn", text: event.reason }]);
+    }
+  }
+
+  function openSocket() {
+    const proto = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(proto + location.host + "/api/rec/ws");
+    rec.ws = ws;
+    ws.addEventListener("open", () => ws.send(JSON.stringify({ t: "auth", token })));
+    ws.addEventListener("message", (message) => {
+      if (typeof message.data === "string") {
+        onRecEvent(JSON.parse(message.data));
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([message.data], { type: "image/jpeg" }));
+      $("live").src = url;
+      if (rec.frame) URL.revokeObjectURL(rec.frame);
+      rec.frame = url;
+    });
+    ws.addEventListener("close", (event) => {
+      if (rec.ws !== ws || !rec.active) return;
+      if (event.code === 4409 || event.code === 4401) {
+        // Abgelehnt (anderes Fenster zeigt die Aufnahme / Anmeldung fehlgeschlagen)
+        setRecording(false);
+        say([{ kind: "error", text: rec.lastError || "Verbindung zum Live-Browser abgelehnt." }]);
+        return;
+      }
+      note("error", "Verbindung zum Live-Browser getrennt.");
+    });
+  }
+
+  async function startRecording() {
+    const res = await api("POST", "/api/rec/start", { base_url: $("f-base").value.trim(), path: $("rec-path").value.trim() || "/" });
+    if (!res.ok) return say(apiError(res));
+    const start = { op: res.data.step.op, selector: "", value: res.data.step.value, comment: "" };
+    // Ein leeres oder nur aus dem Start-goto bestehendes Profil wird ersetzt, sonst angehängt
+    if (steps.length === 0 || (steps.length === 1 && steps[0].op === "goto")) steps = [start];
+    else steps.push(start);
+    renderSteps();
+    say([]);
+    note("warn", "");
+    setRecording(true);
+    openSocket();
+  }
+
+  async function stopRecording() {
+    await api("POST", "/api/rec/stop");
+    if (rec.ws) rec.ws.close();
+    setRecording(false);
+  }
+
+  async function initRecorder() {
+    const config = await api("GET", "/api/config");
+    $("recorder").hidden = !(config.ok && config.data.recorder);
+    if (!config.ok || !config.data.recorder) return;
+    rec.viewport = config.data.viewport;
+    const state = await api("GET", "/api/rec/state");
+    if (state.ok && state.data.active && !rec.active) {
+      setRecording(true);
+      openSocket();
+      note("warn", "Eine laufende Aufnahme wurde wieder verbunden. Frühere Schritte stehen nicht mehr in der Liste.");
+    }
+  }
+
+  function livePoint(event) {
+    const box = $("live").getBoundingClientRect();
+    return {
+      x: Math.floor(((event.clientX - box.left) * rec.viewport.width) / box.width),
+      y: Math.floor(((event.clientY - box.top) * rec.viewport.height) / box.height),
+    };
+  }
+
+  $("live").addEventListener("click", (event) => {
+    const point = livePoint(event);
+    const message = { t: "click", x: point.x, y: point.y };
+    if (rec.pick) message.pick = rec.pick;
+    send(message);
+    setPick(null);
+  });
+  let lastScroll = 0;
+  $("live").addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      const now = Date.now();
+      if (now - lastScroll < 80) return;
+      lastScroll = now;
+      send({ t: "scroll", dy: event.deltaY });
+    },
+    { passive: false }
   );
+  document.querySelectorAll("#rec-picks button").forEach((button) =>
+    button.addEventListener("click", () => setPick(rec.pick === button.dataset.kind ? null : button.dataset.kind))
+  );
+  document.querySelectorAll("#rec-text-form [data-key]").forEach((button) =>
+    button.addEventListener("click", () => send({ t: "key", key: button.dataset.key }))
+  );
+  $("rec-text-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = $("rec-text").value;
+    if (!text) return;
+    send({ t: "fill", text, as: $("rec-as").value });
+    $("rec-text").value = "";
+  });
+  $("rec-show").addEventListener("change", () => ($("rec-text").type = $("rec-show").checked ? "text" : "password"));
+  $("rec-start").addEventListener("click", startRecording);
+  $("rec-stop").addEventListener("click", stopRecording);
+
+  $("token-form").addEventListener("submit", connect);
+  $("new-profile").addEventListener("click", () => {
+    if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
+    show({ name: "", description: "", base_url: "http://", timeout_ms: 15000, steps: [{ op: "goto", value: "/" }] }, true);
+  });
   $("add-step").addEventListener("click", () => {
     steps.push({ op: "click", selector: "", value: "", comment: "" });
     renderSteps();
