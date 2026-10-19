@@ -12,7 +12,7 @@ usage() {
 Aufruf: $(basename "$0") [Optionen] <profil>
 
   -l, --list         vorhandene Profile anzeigen
-  -b, --build        Runner-Image (neu) bauen
+  -b, --build        Runner-Image neu bauen (sonst nur bei fehlendem Image oder geänderten Quellen)
   -s, --screenshots  Screenshot nach jedem Schritt (sonst nur bei Fehlern)
   -h, --help         diese Hilfe
 
@@ -60,9 +60,31 @@ mode="$(stat -c '%a' "$ENV_FILE")"
 exec 9>"$DIR/.run.lock"
 flock -n 9 || die "Es läuft bereits ein Lauf."
 
-if ((build)) || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "Baue Image $IMAGE ..."
-  docker build -q -f "$DIR/runner/Dockerfile" -t "$IMAGE" "$DIR" >/dev/null
+# Prüfsumme über alles, was ins Runner-Image kopiert wird (siehe runner/Dockerfile).
+# Sie steht als Label am Image; weicht sie ab, wird das Image automatisch neu gebaut.
+source_hash() {
+  (
+    cd "$DIR"
+    {
+      printf '%s\0' runner/Dockerfile runner/requirements.txt runner/runner.py
+      find shared -type f ! -path '*/__pycache__/*' ! -name '*.pyc' -print0 | LC_ALL=C sort -z
+    } | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+  )
+}
+
+src_hash="$(source_hash)"
+image_hash="$(docker image inspect --format '{{ index .Config.Labels "ss.source-hash" }}' "$IMAGE" 2>/dev/null || true)"
+
+if ((build)) || [[ "$image_hash" != "$src_hash" ]]; then
+  if ((build)); then
+    echo "Baue Image $IMAGE (angefordert) ..."
+  elif [[ -z "$image_hash" ]]; then
+    echo "Baue Image $IMAGE (noch nicht vorhanden oder ohne Prüfsumme) ..."
+  else
+    echo "Baue Image $IMAGE (Quellen haben sich geändert) ..."
+  fi
+  docker build -q --label "ss.source-hash=$src_hash" -f "$DIR/runner/Dockerfile" -t "$IMAGE" "$DIR" >/dev/null \
+    || die "Image-Build fehlgeschlagen."
 fi
 
 extra=()

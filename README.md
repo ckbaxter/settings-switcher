@@ -21,7 +21,7 @@ Fritzbox-Portfreigabe (an/aus), wenn TR-064 nicht in Frage kommt.
 ```bash
 cp runner.env.example runner.env && chmod 600 runner.env   # Hosts + Zugangsdaten eintragen
 cp .env.example .env && chmod 600 .env                     # Editor-Token (openssl rand -hex 24)
-./run.sh --build beispiel                                  # baut das Runner-Image (Lauf endet mit Exit 2, solange TODO im Profil steht)
+./run.sh beispiel                                          # baut beim ersten Aufruf das Runner-Image (Lauf endet mit Exit 2, solange TODO im Profil steht)
 docker compose --profile record up -d --build              # Editor mit Live-Browser starten, http://127.0.0.1:8080
 docker compose --profile record down                       # und wieder beenden
 docker compose --profile editor up -d --build              # Alternative: Editor ohne Browser (nur Profile bearbeiten)
@@ -30,6 +30,14 @@ docker compose --profile editor up -d --build              # Alternative: Editor
 In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SS_ALLOWED_HOSTS` (Fritzbox-IP) stehen.
 `record` und `editor` benutzen denselben Port, starte nur einen von beiden.
 Starte `run.sh` als normaler Benutzer (UID wie `SS_UID`), nicht mit `sudo` (siehe Fehlersuche).
+
+`run.sh` baut das Runner-Image selbst, wenn es fehlt oder sich `runner/Dockerfile`,
+`runner/requirements.txt`, `runner/runner.py` oder `shared/` seit dem letzten Bau geändert haben
+(Prüfsumme als Image-Label `ss.source-hash`). Nach einem `git pull` genügt also der nächste Aufruf; der
+Bau braucht dann Netz für Basis-Image und pip und dauert beim ersten Mal länger. Schlägt er fehl, endet
+`run.sh` mit Exit 2 und führt nichts aus. `./run.sh --build <profil>` erzwingt einen Neubau, etwa um
+Sicherheitsupdates der Basis-Image-Schicht zu holen, wenn sich der Tag nicht geändert hat.
+Editor und Recorder sind eigene Images und werden mit `docker compose … up -d --build` neu gebaut.
 
 ### Zwei Host-Listen, nicht verwechseln
 
@@ -177,14 +185,15 @@ Dependabot (`.github/dependabot.yml`) prüft montags die pip-Pins und die Docker
 höchstens einen gemeinsamen Pull Request pro Woche. Gemeinsam deshalb, weil Playwright-Pin
 (`runner/requirements.txt`, `requirements-dev.txt`) und Playwright-Image (`FROM` in `runner/Dockerfile`
 und `recorder/Dockerfile`) dieselbe Version haben müssen; `tests/test_versions.py` prüft das.
-Vor dem Merge: `python3 -m pytest` und die Images neu bauen
-(`docker compose --profile record build`, `./run.sh --build <profil>`). Neue Releases wartet
-Dependabot fünf Tage ab (Cooldown), weil das Playwright-Image nicht immer am selben Tag wie das
-PyPI-Paket erscheint.
+Vor dem Merge: `python3 -m pytest`. Nach dem Merge und `git pull` baut `run.sh` den Runner beim
+nächsten Aufruf selbst neu (siehe Einrichtung); Editor und Recorder brauchen
+`docker compose --profile record up -d --build`. Neue Releases wartet Dependabot fünf Tage ab
+(Cooldown), weil das Playwright-Image nicht immer am selben Tag wie das PyPI-Paket erscheint.
 
 ## Status und Grenzen
 
 Automatisch getestet (`python3 -m pytest`): Schema-Validierung, Host-Prüfung, Variablen, Editor-API,
+Versionskopplung von Playwright-Pin und -Image, die Neubau-Entscheidung von `run.sh` (mit Docker-Attrappe),
 Editor-Oberfläche im echten Browser (inkl. XSS- und CSP-Prüfung), Läufe des Runners in Chromium
 gegen eine lokale Testseite, der Live-Recorder (Selektoren, Passwortbehandlung, Scrollen,
 WebSocket-Absicherung) und der ganze Weg „im Editor aufzeichnen → speichern → mit dem Runner abspielen“
