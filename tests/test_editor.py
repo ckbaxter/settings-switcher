@@ -122,3 +122,35 @@ def test_bad_json_and_oversize(client):
 def test_ops_endpoint_lists_no_script_op(client):
     ops = {o["op"] for o in client.get("/api/ops", headers=H).json()}
     assert "click" in ops and "evaluate" not in ops
+
+
+def test_save_without_write_permission_gives_clear_error(client, monkeypatch):
+    def denied(*args, **kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("editor.app.tempfile.mkstemp", denied)
+    res = client.put("/api/profiles/demo", headers=H, json=PROFILE)
+    assert res.status_code == 500
+    assert "SS_UID" in res.json()["detail"] and "Schreibrechte" in res.json()["detail"]
+
+
+def test_save_fails_cleanly_when_replace_fails(client, monkeypatch, tmp_path):
+    def broken(*args, **kwargs):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr("editor.app.os.replace", broken)
+    res = client.put("/api/profiles/demo", headers=H, json=PROFILE)
+    assert res.status_code == 500
+    assert "OSError" in res.json()["detail"]
+    assert list(tmp_path.glob(".tmp-*")) == []  # keine Reste
+
+
+def test_delete_without_write_permission_gives_clear_error(client, monkeypatch):
+    assert client.put("/api/profiles/demo", headers=H, json=PROFILE).status_code == 200
+
+    def denied(self, *args, **kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("editor.app.Path.unlink", denied)
+    res = client.delete("/api/profiles/demo", headers=H)
+    assert res.status_code == 500 and "Schreibrechte" in res.json()["detail"]

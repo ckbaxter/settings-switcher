@@ -30,6 +30,10 @@ docker compose --profile editor up -d --build              # Alternative: Editor
 In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SS_ALLOWED_HOSTS` (Fritzbox-IP) stehen.
 `record` und `editor` benutzen denselben Port, starte nur einen von beiden.
 
+**Speichern schlägt mit Fehler 500 fehl?** Dann darf der Container-Benutzer nicht in `./profiles`
+schreiben. Setze in `.env` `SS_UID`/`SS_GID` auf die Werte von `id -u` / `id -g` des Benutzers, dem
+`./profiles` gehört (oder `chown` das Verzeichnis), und starte den Dienst mit `docker compose … up -d` neu.
+
 ## Sicherheitsmodell
 
 Der Runner hat Zugriff auf die Fritzbox, deshalb gilt:

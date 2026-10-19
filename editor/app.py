@@ -11,6 +11,7 @@ Sicherheit:
 
 import asyncio
 import json
+import logging
 import os
 import secrets
 import tempfile
@@ -28,6 +29,8 @@ from editor.recorder import VIEWPORT, Recorder, RecorderError, stream_frames
 from shared.hosts import parse_allowed_hosts
 from shared.profile_schema import NAME_RE, OPS, find_placeholders, validate_profile
 
+log = logging.getLogger("uvicorn.error")
+
 MAX_BODY = 200_000
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -41,6 +44,17 @@ def _host_from_headers(headers):
     if host.startswith("["):  # IPv6-Literal
         return host[1:].split("]", 1)[0]
     return host.split(":", 1)[0]
+
+
+def _write_error(exc):
+    """Verständliche Meldung statt nacktem 500 (meist: der Container-Benutzer darf in profiles/ nicht schreiben)."""
+    log.error("Profil konnte nicht geschrieben werden: %s", exc)
+    if isinstance(exc, PermissionError):
+        return (
+            "Keine Schreibrechte auf das Profilverzeichnis. SS_UID/SS_GID in .env müssen zum Besitzer von "
+            "./profiles passen (id -u, id -g; ggf. chown), danach docker compose neu starten."
+        )
+    return f"Profil konnte nicht gespeichert werden ({exc.__class__.__name__}). Details im Container-Log."
 
 
 def create_app(profiles_dir, token, allowed_hosts, recorder=None):
@@ -160,11 +174,17 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None):
         if errors:
             return JSONResponse({"errors": errors}, status_code=422)
         text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
-        fd, tmp = tempfile.mkstemp(dir=profiles_dir, prefix=".tmp-", suffix=".json")
+        try:
+            fd, tmp = tempfile.mkstemp(dir=profiles_dir, prefix=".tmp-", suffix=".json")
+        except OSError as exc:
+            raise HTTPException(500, _write_error(exc))
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(text)
             os.replace(tmp, path)
+        except OSError as exc:
+            Path(tmp).unlink(missing_ok=True)
+            raise HTTPException(500, _write_error(exc))
         except BaseException:
             Path(tmp).unlink(missing_ok=True)
             raise
@@ -177,6 +197,8 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None):
             path.unlink()
         except FileNotFoundError:
             raise HTTPException(404, "Profil nicht gefunden.")
+        except OSError as exc:
+            raise HTTPException(500, _write_error(exc))
         return {"ok": True}
 
     # ---------- Aufnahme-Modus ----------
