@@ -172,3 +172,95 @@ def test_start_outside_allowed_hosts_is_refused(live, page):
     page.click("#rec-start")
     expect(page.locator("#messages")).to_contain_text("SS_ALLOWED_HOSTS")
     expect(page.locator("#rec-live")).to_be_hidden()
+
+
+# ---------- Scrollen im Live-Browser (Knöpfe, Mausrad, Wischen auf dem iPad) ----------
+
+
+def read_scroll_position(page):
+    """Liest den Scrollstand der Testseite über eine Prüfung (expect_text auf #pos) im Editor."""
+    before = page.locator("#steps .step").count()
+    page.click('#rec-picks [data-kind="expect_text"]')
+    live_click(page, 905, 25)
+    wait_steps(page, before + 1)
+    value = page.locator("#steps .step").nth(before).locator("input").nth(1).input_value()
+    page.locator("#steps .step").nth(before).get_by_role("button").last.click()  # Schritt wieder entfernen
+    wait_steps(page, before)
+    return value
+
+
+def wait_for_position(page, expected, timeout=6):
+    end = time.time() + timeout
+    value = None
+    while time.time() < end:
+        value = read_scroll_position(page)
+        if value == expected:
+            return
+        time.sleep(0.2)
+    raise AssertionError(f"Scrollstand {value!r}, erwartet {expected!r}")
+
+
+def start_recording(page, url, server):
+    connect(page, url)
+    page.click("#new-profile")
+    page.fill("#f-base", server)
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    expect(page.locator("#live")).to_have_attribute("src", re.compile("^blob:"))
+    wait_steps(page, 1)
+
+
+def test_scroll_buttons_move_the_live_page(live, server, page):
+    url, _ = live
+    start_recording(page, url, server)
+    expect(page.locator("#rec-scroll button")).to_have_count(4)
+
+    page.click('#rec-scroll [data-scroll="down"]')
+    wait_for_position(page, "0,400")
+    page.click('#rec-scroll [data-scroll="right"]')
+    wait_for_position(page, "400,400")
+    page.click('#rec-scroll [data-scroll="up"]')
+    wait_for_position(page, "400,0")
+    page.click('#rec-scroll [data-scroll="left"]')
+    wait_for_position(page, "0,0")
+    wait_steps(page, 1)  # Scrollen erzeugt keine Schritte
+
+
+def test_touch_swipe_scrolls_and_does_not_click(live, server):
+    url, _ = live
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(args=["--no-sandbox"])
+        context = browser.new_context(viewport={"width": 1000, "height": 1100}, has_touch=True, is_mobile=False)
+        page = context.new_page()
+        page.set_default_timeout(8000)
+        try:
+            start_recording(page, url, server)
+            box = page.locator("#live").bounding_box()
+            scale = 1280 / box["width"]
+            cdp = context.new_cdp_session(page)
+            x = box["x"] + box["width"] / 2
+            y0 = box["y"] + box["height"] * 0.8
+
+            def touch(kind, yy=None):
+                points = [] if yy is None else [{"x": x, "y": yy}]
+                cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+            # Finger nach oben wischen = Seite im Live-Browser läuft nach unten
+            touch("touchStart", y0)
+            for i in range(1, 9):
+                touch("touchMove", y0 - i * 20)
+                time.sleep(0.03)
+            touch("touchEnd")
+            swiped = 160 * scale
+            deadline = time.time() + 6
+            value = ""
+            while time.time() < deadline:
+                value = read_scroll_position(page)
+                if value.startswith("0,") and abs(int(value.split(",")[1]) - swiped) < swiped * 0.25:
+                    break
+                time.sleep(0.2)
+            assert value.startswith("0,"), value
+            assert abs(int(value.split(",")[1]) - swiped) < swiped * 0.25, (value, swiped)
+            wait_steps(page, 1)  # kein Klick-Schritt durch das Wischen
+        finally:
+            browser.close()

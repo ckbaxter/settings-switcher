@@ -256,9 +256,7 @@ class Session:
                 elif kind == "select":
                     await self._select(msg)
                 elif kind == "scroll":
-                    dy = msg.get("dy")
-                    if isinstance(dy, (int, float)) and not isinstance(dy, bool):
-                        await self.page.mouse.wheel(0, max(-2000, min(2000, dy)))
+                    await self._scroll(msg)
         except RecorderError as exc:
             self.emit({"t": "error", "message": str(exc)})
         except Exception as exc:  # noqa: BLE001 - Fehler der Seite sind keine Abstürze des Recorders
@@ -271,6 +269,21 @@ class Session:
             if not isinstance(v, (int, float)) or isinstance(v, bool) or not 0 <= v < limit:
                 raise RecorderError("Ungültige Position.")
         return int(x), int(y)
+
+    async def _scroll(self, msg):
+        """Mausrad, Wischen oder Pfeilknöpfe. dx/dy in Pixeln, x/y (optional) = Position des Zeigers."""
+        deltas = []
+        for key in ("dx", "dy"):
+            v = msg.get(key, 0)
+            if not isinstance(v, (int, float)) or isinstance(v, bool) or v != v:  # NaN
+                raise RecorderError("Ungültige Scroll-Angabe.")
+            deltas.append(max(-2000, min(2000, v)))
+        if "x" in msg or "y" in msg:
+            x, y = self._coords(msg)
+        else:  # ohne Position: Bildmitte, damit auch innere Bereiche scrollen
+            x, y = VIEWPORT["width"] // 2, VIEWPORT["height"] // 2
+        await self.page.mouse.move(x, y)
+        await self.page.mouse.wheel(deltas[0], deltas[1])
 
     async def _click(self, msg):
         x, y = self._coords(msg)

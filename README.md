@@ -110,6 +110,7 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 | Klick auf Checkbox | `check` / `uncheck` je nach Ergebnis |
 | Klick auf Auswahlliste | Liste erscheint im Editor, die Wahl wird `select_option` |
 | Enter, Tab, Escape (Tastenknöpfe) | `press` |
+| Scrollen: Mausrad, Wischen im Bild (iPad/Touch) oder die Knöpfe ◀ ▲ ▼ ▶ | kein Schritt, die Seite im Live-Browser scrollt nur |
 | „Prüfen“-Knöpfe, dann auf ein Element klicken | `expect_visible` / `expect_text` / `expect_checked` / `expect_unchecked` / `wait_for` |
 
 4. **Aufnahme beenden**, Schritte prüfen (Reihenfolge, Selektoren, `TODO`-Werte), **Speichern**.

@@ -60,6 +60,14 @@
             <button type="button" data-kind="wait_for">Warten auf</button>
           </div>
           <div class="viewer"><img id="live" alt="Live-Ansicht des Browsers" draggable="false"></div>
+          <div id="rec-scroll" class="rec-bar" role="group" aria-label="Seite im Live-Browser scrollen">
+            <span class="hint">Scrollen:</span>
+            <button type="button" data-scroll="left" aria-label="nach links" title="nach links">◀</button>
+            <button type="button" data-scroll="up" aria-label="nach oben" title="nach oben">▲</button>
+            <button type="button" data-scroll="down" aria-label="nach unten" title="nach unten">▼</button>
+            <button type="button" data-scroll="right" aria-label="nach rechts" title="nach rechts">▶</button>
+            <span class="hint">oder im Bild wischen</span>
+          </div>
           <div id="rec-url" class="hint"></div>
           <div id="rec-note" class="msg warn"></div>
           <div id="rec-select" class="rec-bar" hidden></div>

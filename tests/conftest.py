@@ -25,6 +25,9 @@ PAGE = """<!doctype html><meta charset="utf-8"><title>Testbox</title>
   <button class="a" style="left:20px;top:400px;width:60px;height:30px">OK</button>
   <input name="port" type="text" class="a" style="left:20px;top:440px;width:200px;height:30px">
 </div>
+<div class="a" style="left:3000px;top:3000px;width:10px;height:10px"></div>
+<span id="pos" style="position:fixed;left:900px;top:20px;width:150px;height:24px">0,0</span>
+<script>addEventListener("scroll",()=>{document.getElementById("pos").textContent=Math.round(scrollX)+","+Math.round(scrollY)})</script>
 <img src="http://10.255.255.1/tracker.png" alt="">
 """
 

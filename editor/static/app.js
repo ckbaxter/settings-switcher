@@ -391,13 +391,16 @@
     };
   }
 
+  let swipeEndedAt = 0; // ein Klick unmittelbar nach einem Wisch ist nur ein Nachläufer und wird verworfen
   $("live").addEventListener("click", (event) => {
+    if (Date.now() - swipeEndedAt < 60) return;
     const point = livePoint(event);
     const message = { t: "click", x: point.x, y: point.y };
     if (rec.pick) message.pick = rec.pick;
     send(message);
     setPick(null);
   });
+  // Scrollen: Mausrad, Wischen (Touch/Stift) und Pfeilknöpfe schicken alle {t:"scroll", dx, dy, x, y}
   let lastScroll = 0;
   $("live").addEventListener(
     "wheel",
@@ -406,10 +409,63 @@
       const now = Date.now();
       if (now - lastScroll < 80) return;
       lastScroll = now;
-      send({ t: "scroll", dy: event.deltaY });
+      const point = livePoint(event);
+      send({ t: "scroll", dx: event.deltaX, dy: event.deltaY, x: point.x, y: point.y });
     },
     { passive: false }
   );
+
+  const SCROLL_STEP = 400;
+  const SCROLL_DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  document.querySelectorAll("#rec-scroll [data-scroll]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const dir = SCROLL_DIRS[button.dataset.scroll];
+      if (dir) send({ t: "scroll", dx: dir[0] * SCROLL_STEP, dy: dir[1] * SCROLL_STEP });
+    })
+  );
+
+  // Wischen: Finger nach unten = Seite nach oben (wie auf dem Gerät gewohnt)
+  const swipe = { id: null, lastX: 0, lastY: 0, startX: 0, startY: 0, moved: false, dx: 0, dy: 0, sent: 0, point: null };
+  function flushSwipe(force) {
+    const now = Date.now();
+    if (!force && now - swipe.sent < 80) return;
+    if (!swipe.dx && !swipe.dy) return;
+    const box = $("live").getBoundingClientRect();
+    const scale = rec.viewport.width / box.width;
+    send({ t: "scroll", dx: swipe.dx * scale, dy: swipe.dy * scale, x: swipe.point.x, y: swipe.point.y });
+    swipe.dx = 0;
+    swipe.dy = 0;
+    swipe.sent = now;
+  }
+  $("live").addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" || swipe.id !== null) return;
+    swipe.id = event.pointerId;
+    swipe.startX = swipe.lastX = event.clientX;
+    swipe.startY = swipe.lastY = event.clientY;
+    swipe.moved = false;
+    swipe.dx = 0;
+    swipe.dy = 0;
+    swipe.point = livePoint(event);
+    $("live").setPointerCapture(event.pointerId);
+  });
+  $("live").addEventListener("pointermove", (event) => {
+    if (event.pointerId !== swipe.id) return;
+    if (!swipe.moved && Math.hypot(event.clientX - swipe.startX, event.clientY - swipe.startY) < 10) return;
+    swipe.moved = true;
+    swipe.dx += swipe.lastX - event.clientX;
+    swipe.dy += swipe.lastY - event.clientY;
+    swipe.lastX = event.clientX;
+    swipe.lastY = event.clientY;
+    flushSwipe(false);
+  });
+  function endSwipe(event) {
+    if (event.pointerId !== swipe.id) return;
+    flushSwipe(true);
+    if (swipe.moved) swipeEndedAt = Date.now();
+    swipe.id = null;
+  }
+  $("live").addEventListener("pointerup", endSwipe);
+  $("live").addEventListener("pointercancel", endSwipe);
   document.querySelectorAll("#rec-picks button").forEach((button) =>
     button.addEventListener("click", () => setPick(rec.pick === button.dataset.kind ? null : button.dataset.kind))
   );

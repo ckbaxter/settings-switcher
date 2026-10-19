@@ -297,3 +297,59 @@ def test_recorded_selectors_replay_in_runner(server, tmp_path):
         timeout=90,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ---------- Scrollen (Mausrad, Wischen, Pfeilknöpfe) ----------
+
+
+async def scroll_pos(s, expected=None):
+    """Mausrad-Scrollen ist asynchron: kurz warten, bis die erwartete Position erreicht ist."""
+    pos = None
+    for _ in range(40):
+        pos = await s.page.evaluate("[Math.round(scrollX), Math.round(scrollY)]")
+        if expected is None or pos == expected:
+            break
+        await asyncio.sleep(0.05)
+    return pos
+
+
+def test_scroll_moves_page_in_both_directions_without_recording_steps(server):
+    async def scenario(s):
+        drain(s)
+        await s.handle({"t": "scroll", "dx": 0, "dy": 400})
+        down = await scroll_pos(s, [0, 400])
+        await s.handle({"t": "scroll", "dx": 300, "dy": 0})
+        right = await scroll_pos(s, [300, 400])
+        await s.handle({"t": "scroll", "dx": -100, "dy": -100, "x": 200, "y": 200})
+        back = await scroll_pos(s, [200, 300])
+        return down, right, back, drain(s)
+
+    down, right, back, events = run_session(server, scenario)
+    assert down == [0, 400]
+    assert right == [300, 400]
+    assert back == [200, 300]
+    assert steps_of(events) == [] and not [e for e in events if e["t"] == "error"]
+
+
+def test_scroll_values_are_clamped_and_validated(server):
+    async def scenario(s):
+        drain(s)
+        await s.handle({"t": "scroll", "dx": 0, "dy": 10**9})
+        clamped = await scroll_pos(s, [0, 2000])
+        ok_events = drain(s)
+        for bad in (
+            {"dx": "5"},
+            {"dy": True},
+            {"dy": float("nan")},
+            {"dy": 10, "x": -1, "y": 10},
+            {"dy": 10, "x": 10, "y": 99999},
+            {"dy": 10, "x": 10},
+        ):
+            await s.handle({"t": "scroll", **bad})
+        return clamped, ok_events, drain(s), await scroll_pos(s)
+
+    clamped, ok_events, bad_events, final = run_session(server, scenario)
+    assert clamped == [0, 2000]
+    assert ok_events == []
+    assert [e["t"] for e in bad_events] == ["error"] * 6
+    assert final == [0, 2000]  # ungültige Angaben scrollen nichts
