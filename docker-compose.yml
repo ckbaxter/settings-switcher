@@ -1,0 +1,30 @@
+# Nur der Profil-Editor. Der Runner wird bei Bedarf von run.sh gestartet.
+#   Start:  docker compose --profile editor up -d --build
+#   Stopp:  docker compose --profile editor down
+# Der Editor bekommt bewusst keine Fritzbox-Zugangsdaten (die stehen nur in runner.env).
+services:
+  editor:
+    profiles: ["editor"]
+    build:
+      context: .
+      dockerfile: editor/Dockerfile
+    image: settings-switcher-editor
+    container_name: settings-switcher-editor
+    restart: "no"
+    user: "${SS_UID:-1000}:${SS_GID:-1000}"
+    ports:
+      - "${EDITOR_BIND:-127.0.0.1}:${EDITOR_PORT:-8080}:8080"
+    environment:
+      EDITOR_TOKEN: ${EDITOR_TOKEN:?EDITOR_TOKEN in .env setzen (mindestens 16 Zeichen)}
+      EDITOR_ALLOWED_HOSTS: ${EDITOR_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    volumes:
+      - ./profiles:/profiles
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 128

@@ -1,0 +1,39 @@
+{
+  "name": "beispiel",
+  "description": "Vorlage mit Platzhaltern. Der Runner führt sie nicht aus, solange TODO drinsteht.",
+  "base_url": "http://192.168.178.1",
+  "timeout_ms": 15000,
+  "steps": [
+    {
+      "op": "goto",
+      "value": "/",
+      "comment": "Startseite öffnen"
+    },
+    {
+      "op": "fill",
+      "selector": "TODO: Selektor Passwortfeld per codegen aufzeichnen",
+      "value": "${SS_PASSWORD}"
+    },
+    {
+      "op": "click",
+      "selector": "TODO: Selektor Anmelden-Button"
+    },
+    {
+      "op": "wait_for",
+      "selector": "TODO: Element, das nach dem Login sichtbar ist"
+    },
+    {
+      "op": "check",
+      "selector": "TODO: Checkbox der Freigabe"
+    },
+    {
+      "op": "click",
+      "selector": "TODO: Übernehmen-Button"
+    },
+    {
+      "op": "expect_checked",
+      "selector": "TODO: Checkbox nach dem Speichern",
+      "comment": "Erfolgsprüfung"
+    }
+  ]
+}

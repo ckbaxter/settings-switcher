@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings Switcher</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Settings Switcher</h1>
+    <form id="token-form" class="token-form" autocomplete="off">
+      <label for="token">Token</label>
+      <input id="token" type="password" autocomplete="off" required>
+      <button type="submit">Verbinden</button>
+    </form>
+  </header>
+
+  <div id="messages" class="messages" role="status" aria-live="polite"></div>
+
+  <main>
+    <aside>
+      <h2>Profile</h2>
+      <ul id="profile-list" class="profile-list"></ul>
+      <button id="new-profile" type="button" disabled>Neues Profil</button>
+    </aside>
+
+    <section id="editor" hidden>
+      <h2 id="editor-title">Profil</h2>
+      <div class="grid">
+        <label for="f-name">Name</label>
+        <input id="f-name" maxlength="64" placeholder="portfreigabe-an">
+        <label for="f-desc">Beschreibung</label>
+        <input id="f-desc" maxlength="500">
+        <label for="f-base">Basis-URL</label>
+        <input id="f-base" maxlength="500" placeholder="http://192.168.178.1">
+        <label for="f-timeout">Timeout (ms)</label>
+        <input id="f-timeout" type="number" min="1000" max="60000" step="500">
+      </div>
+
+      <h3>Schritte</h3>
+      <p class="hint">
+        Selektoren zeichnest du mit <code>playwright codegen</code> auf und fügst sie hier ein (siehe README).
+        Passwörter nie eintragen, nur <code>${SS_PASSWORD}</code> bei „fill“.
+      </p>
+      <ol id="steps" class="steps"></ol>
+      <button id="add-step" type="button">+ Schritt</button>
+
+      <div class="actions">
+        <button id="validate" type="button">Prüfen</button>
+        <button id="save" type="button" class="primary">Speichern</button>
+        <button id="delete" type="button" class="danger" hidden>Löschen</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
