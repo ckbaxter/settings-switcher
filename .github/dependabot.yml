@@ -1,0 +1,47 @@
+# Dependabot: prüft wöchentlich pip-Pins und Docker-Images.
+#
+# Alles landet bewusst in EINEM Pull Request pro Woche (multi-ecosystem-groups).
+# Grund: Der Playwright-Pin (runner/requirements.txt, requirements-dev.txt) und das
+# Playwright-Image (FROM in runner/Dockerfile und recorder/Dockerfile) müssen immer
+# dieselbe Version haben. In getrennten PRs könnte nur eine Hälfte gemerged werden.
+# tests/test_versions.py prüft diese Kopplung; vor dem Merge `python3 -m pytest` laufen lassen.
+#
+# Es gibt keine GitHub-Actions-Workflows im Repo, daher kein Eintrag für "github-actions".
+version: 2
+
+multi-ecosystem-groups:
+  abhaengigkeiten:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "Abhängigkeiten"
+
+updates:
+  - package-ecosystem: "pip"
+    directories:
+      - "/"
+      - "/runner"
+      - "/editor"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "abhaengigkeiten"
+    # Neue Releases ein paar Tage liegen lassen: Das Playwright-Image erscheint
+    # nicht immer am selben Tag wie das PyPI-Paket. Sicherheitsupdates sind davon ausgenommen.
+    cooldown:
+      default-days: 5
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/runner"
+      - "/recorder"
+      - "/editor"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "abhaengigkeiten"
+    cooldown:
+      default-days: 5

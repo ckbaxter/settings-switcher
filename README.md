@@ -171,6 +171,17 @@ Wichtig:
 | Lauf „ok“, aber nichts geändert | Meist falsche Richtung (`uncheck` statt `check` oder der Zustand war schon so), zu früher Logout oder fehlende Gegenprobe. `./run.sh -s` zeigt Screenshots pro Schritt. |
 | Schritt bricht ab | Selektor nicht (mehr) eindeutig, z. B. nach FRITZ!OS-Update, oder Element erscheint erst nach dem Laden (`wait_for` davor). Den Schritt neu aufzeichnen. |
 
+## Abhängigkeiten aktuell halten
+
+Dependabot (`.github/dependabot.yml`) prüft montags die pip-Pins und die Docker-Images und öffnet
+höchstens einen gemeinsamen Pull Request pro Woche. Gemeinsam deshalb, weil Playwright-Pin
+(`runner/requirements.txt`, `requirements-dev.txt`) und Playwright-Image (`FROM` in `runner/Dockerfile`
+und `recorder/Dockerfile`) dieselbe Version haben müssen; `tests/test_versions.py` prüft das.
+Vor dem Merge: `python3 -m pytest` und die Images neu bauen
+(`docker compose --profile record build`, `./run.sh --build <profil>`). Neue Releases wartet
+Dependabot fünf Tage ab (Cooldown), weil das Playwright-Image nicht immer am selben Tag wie das
+PyPI-Paket erscheint.
+
 ## Status und Grenzen
 
 Automatisch getestet (`python3 -m pytest`): Schema-Validierung, Host-Prüfung, Variablen, Editor-API,

@@ -3,9 +3,10 @@
 FROM mcr.microsoft.com/playwright/python:v1.56.0-noble
 
 WORKDIR /app
+# Der Playwright-Pin kommt aus runner/requirements.txt (eine Quelle, die Dependabot mitpflegt).
 COPY editor/requirements.txt ./
-RUN pip install --no-cache-dir --break-system-packages -r requirements.txt \
-    && pip install --no-cache-dir --break-system-packages playwright==1.56.0
+COPY runner/requirements.txt ./runner-requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt -r runner-requirements.txt
 
 COPY shared/ ./shared/
 COPY editor/ ./editor/
