@@ -180,6 +180,7 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None):
             raise HTTPException(500, _write_error(exc))
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                os.fchmod(fh.fileno(), 0o644)  # mkstemp legt 0600 an; der Runner läuft evtl. mit anderer UID. Profile sind nicht geheim.
                 fh.write(text)
             os.replace(tmp, path)
         except OSError as exc:

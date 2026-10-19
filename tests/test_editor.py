@@ -154,3 +154,15 @@ def test_delete_without_write_permission_gives_clear_error(client, monkeypatch):
     monkeypatch.setattr("editor.app.Path.unlink", denied)
     res = client.delete("/api/profiles/demo", headers=H)
     assert res.status_code == 500 and "Schreibrechte" in res.json()["detail"]
+
+
+def test_saved_profile_is_readable_by_other_users(client, tmp_path):
+    import os
+    import stat
+
+    old = os.umask(0o077)  # auch bei strenger Umask muss der Runner (andere UID) die Datei lesen können
+    try:
+        assert client.put("/api/profiles/demo", headers=H, json=PROFILE).status_code == 200
+    finally:
+        os.umask(old)
+    assert stat.S_IMODE((tmp_path / "demo.json").stat().st_mode) == 0o644
