@@ -1,5 +1,5 @@
 # Build-Kontext ist das Repo-Root (siehe docker-compose.yml).
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 COPY editor/requirements.txt ./
