@@ -9,6 +9,13 @@ Sicherheit:
   Passwortfeldern steht im Schritt ${SS_PASSWORD}, sonst ein TODO-Platzhalter.
 - Eine Sitzung gleichzeitig, mit Idle- und Gesamt-Zeitlimit. Popups werden geschlossen,
   Downloads und Service-Worker sind aus.
+
+Wiedergabe bis zur Stopmarke (optional beim Start):
+- Die Schritte bis zur Marke werden vor dem Aufzeichnen im Live-Browser abgespielt,
+  mit denselben Host-Sperren wie sonst. Sie werden dabei nicht erneut aufgezeichnet.
+- Der Recorder kennt keine Zugangsdaten. Ein fill mit ${SS_...} (und alles mit TODO) spielt er
+  deshalb nie selbst ab, sondern hält an: Du erledigst den Schritt im Live-Bild, das wird
+  nicht aufgezeichnet, danach geht es weiter. Genauso bei einem Schritt, der fehlschlägt.
 """
 
 import asyncio
@@ -17,14 +24,16 @@ import re
 import time
 from urllib.parse import urlparse
 
-from shared.hosts import is_allowed_url, url_host
-from shared.profile_schema import MAX_STRING, is_plain_path
+from shared.hosts import is_allowed_url, resolve_url, url_host
+from shared.profile_schema import MAX_STRING, is_plain_path, uses_variable, validate_profile
 
 VIEWPORT = {"width": 1280, "height": 800}
 PICK_KINDS = {"expect_visible", "wait_for", "expect_text", "expect_checked", "expect_unchecked"}
 TEXT_MODES = {"auto", "user", "password", "literal"}
 KEYS = {"Enter", "Tab", "Escape"}
 PLACEHOLDER_VALUE = "TODO: Wert setzen"
+REPLAY_TIMEOUT_MS = 10_000
+REPLAY_CONTROLS = {"replay_resume", "replay_retry", "replay_stop"}
 
 DESCRIBE_JS = """
 (arg) => {
@@ -177,6 +186,81 @@ def display_url(url):
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"[:200]
 
 
+def replay_block_reason(step):
+    """Warum der Recorder einen Schritt nicht selbst abspielt (None = er darf es)."""
+    if step["op"] == "fill" and uses_variable(step.get("value")):
+        return "Zugangsdaten kennt der Recorder nicht. Bitte im Live-Bild selbst eintippen (wird nicht aufgezeichnet)."
+    for field in ("selector", "value"):
+        value = step.get(field)
+        if isinstance(value, str) and value.strip().upper().startswith("TODO"):
+            return "Dieser Schritt hat noch ein TODO. Bitte im Live-Bild selbst erledigen (wird nicht aufgezeichnet)."
+    return None
+
+
+def replay_label(step):
+    """Kurzbeschreibung für die Anzeige. Der Wert eines fill steht nie darin."""
+    parts = [step["op"]]
+    if step.get("selector"):
+        parts.append(step["selector"])
+    elif step.get("value") and step["op"] != "fill":
+        parts.append(step["value"])
+    return " ".join(parts)[:120]
+
+
+async def replay_step(page, step, base_url):
+    """Führt einen Schritt aus, wie es der Runner tut (hier mit der async-API)."""
+    from playwright.async_api import expect
+
+    op, selector, value = step["op"], step.get("selector"), step.get("value")
+    if op == "fill" and uses_variable(value):  # schon vorher abgefangen, hier nur als Sicherung
+        raise RecorderError("Zugangsdaten gibt der Recorder nie selbst ein.")
+    loc = page.locator(selector) if selector else None
+    if op == "goto":
+        await page.goto(resolve_url(base_url, value), wait_until="domcontentloaded")
+    elif op == "click":
+        await loc.click()
+    elif op == "click_text":
+        await page.get_by_text(value, exact=True).click()
+    elif op == "fill":
+        await loc.fill(value)
+    elif op == "check":
+        await loc.check()
+    elif op == "uncheck":
+        await loc.uncheck()
+    elif op == "select_option":
+        await loc.select_option(value)
+    elif op == "press":
+        await loc.press(value)
+    elif op == "wait_for":
+        await loc.wait_for(state="visible")
+    elif op == "wait_ms":
+        await page.wait_for_timeout(int(value))
+    elif op == "expect_visible":
+        await expect(loc).to_be_visible(timeout=REPLAY_TIMEOUT_MS)
+    elif op == "expect_text":
+        await expect(loc).to_contain_text(value, timeout=REPLAY_TIMEOUT_MS)
+    elif op == "expect_checked":
+        await expect(loc).to_be_checked(timeout=REPLAY_TIMEOUT_MS)
+    elif op == "expect_unchecked":
+        await expect(loc).not_to_be_checked(timeout=REPLAY_TIMEOUT_MS)
+    else:  # durch die Validierung ausgeschlossen
+        raise RecorderError(f"Unbekannte Operation {op}.")
+
+
+class Replay:
+    """Zustand der Wiedergabe bis zur Stopmarke: pending -> running <-> paused -> done."""
+
+    def __init__(self, steps, base_url):
+        self.steps = steps
+        self.base_url = base_url
+        self.pos = 0  # Index des nächsten Schritts. Bei "done": so viele Schritte sind erledigt.
+        self.phase = "pending"
+        self.action = None  # vom Betrachter gewählt: skip, retry oder stop
+        self.wake = asyncio.Event()
+        self.last_event = None
+        self.task = None
+
+
 class Session:
     def __init__(self, pw, browser, context, page, allowed_hosts):
         self.pw, self.browser, self.context, self.page = pw, browser, context, page
@@ -185,6 +269,7 @@ class Session:
         self.started = self.last_activity = time.monotonic()
         self._lock = asyncio.Lock()
         self._blocked = set()
+        self.replay = None
 
     def emit(self, event):
         try:
@@ -231,7 +316,14 @@ class Session:
         info = await self.page.evaluate(DESCRIBE_JS, {"x": x, "y": y, "focused": focused})
         return None if info.get("none") else info
 
+    @property
+    def recording(self):
+        """Schritte werden nur aufgezeichnet, solange keine Wiedergabe läuft oder wartet."""
+        return self.replay is None or self.replay.phase == "done"
+
     def step(self, op, selector=None, value=None, comment=None):
+        if not self.recording:
+            return
         step = {"op": op}
         if selector:
             step["selector"] = selector
@@ -243,8 +335,102 @@ class Session:
 
     # ---------- Aktionen ----------
 
+    # ---------- Wiedergabe bis zur Stopmarke ----------
+
+    def begin_replay(self):
+        rp = self.replay
+        if rp is not None and rp.phase == "pending":
+            rp.phase = "running"
+            rp.task = asyncio.ensure_future(self.run_replay())
+
+    def replay_snapshot(self):
+        """Letzter Stand für einen Betrachter, der sich (wieder) verbindet."""
+        rp = self.replay
+        return rp.last_event if rp is not None and rp.phase in ("running", "paused") else None
+
+    def replay_control(self, kind):
+        rp = self.replay
+        if rp is None or rp.phase == "done":
+            return
+        if kind == "replay_stop":
+            rp.action = "stop"
+        elif rp.phase != "paused":
+            return
+        elif kind == "replay_resume":
+            rp.action = "skip"
+        elif kind == "replay_retry" and rp.last_event.get("can_retry"):
+            rp.action = "retry"
+        else:
+            return
+        rp.wake.set()
+
+    async def _pause(self, kind, index, message, can_retry):
+        rp = self.replay
+        rp.phase = "paused"
+        rp.last_event = {
+            "t": "replay_pause", "kind": kind, "index": index, "total": len(rp.steps),
+            "message": message, "can_retry": can_retry,
+        }
+        self.emit(rp.last_event)
+        while rp.action is None:
+            rp.wake.clear()
+            await rp.wake.wait()
+        action, rp.action = rp.action, None
+        rp.phase = "running"
+        return action
+
+    async def _focus_field(self, step):
+        """Setzt den Cursor in das Feld, das der Betrachter gleich selbst ausfüllt."""
+        selector = step.get("selector")
+        if step["op"] == "fill" and selector and not selector.strip().upper().startswith("TODO"):
+            try:
+                await self.page.locator(selector).focus(timeout=3000)
+            except Exception:  # noqa: BLE001 - dann klickt der Betrachter selbst ins Feld
+                pass
+
+    async def run_replay(self):
+        rp = self.replay
+        total = len(rp.steps)
+        try:
+            while rp.pos < total and rp.action != "stop":
+                step, n = rp.steps[rp.pos], rp.pos + 1
+                self.touch()
+                reason = replay_block_reason(step)
+                if reason is None:
+                    rp.last_event = {"t": "replay", "index": n, "total": total, "label": replay_label(step)}
+                    self.emit(rp.last_event)
+                    try:
+                        async with self._lock:
+                            await replay_step(self.page, step, rp.base_url)
+                    except Exception as exc:  # noqa: BLE001 - Fehler der Seite sind keine Abstürze des Recorders
+                        first = (str(exc).strip().splitlines() or [exc.__class__.__name__])[0][:200]
+                        action = await self._pause("failed", n, f"Schritt {n} fehlgeschlagen: {first}", True)
+                    else:
+                        rp.pos += 1
+                        continue
+                else:
+                    await self._focus_field(step)
+                    action = await self._pause("manual", n, f"Schritt {n} ({replay_label(step)}): {reason}", False)
+                if action == "skip":  # vom Betrachter selbst erledigt (oder bewusst übergangen)
+                    rp.pos += 1
+                elif action == "stop":
+                    break
+        finally:
+            rp.phase = "done"
+            rp.last_event = None
+            self.emit({"t": "replay_done", "at": rp.pos, "total": total})
+
     async def handle(self, msg):
         kind = msg.get("t")
+        if kind in REPLAY_CONTROLS:
+            self.replay_control(kind)
+            return
+        if not self.recording and self.replay.phase != "paused":
+            # Läuft die Wiedergabe, hält sie die Sperre. Würden wir hier warten, käme auch "Hier aufzeichnen"
+            # (replay_stop) erst nach dem Schritt an, weil der WebSocket Nachrichten nacheinander abarbeitet.
+            if kind != "scroll":  # Mausrad-Ereignisse kommen in Serie, sie werden ohne Meldung verworfen
+                self.emit({"t": "error", "message": "Die Wiedergabe läuft, bitte kurz warten."})
+            return
         try:
             async with self._lock:
                 if kind == "click":
@@ -293,6 +479,8 @@ class Session:
 
         pick = msg.get("pick")
         if pick is not None:
+            if not self.recording:
+                raise RecorderError("Prüfungen lassen sich erst setzen, wenn die Wiedergabe fertig ist.")
             await self._pick(pick, info)
             return
 
@@ -368,6 +556,8 @@ class Session:
         self.step("select_option", selector, value)
 
     async def close(self):
+        if self.replay is not None and self.replay.task is not None:
+            self.replay.task.cancel()
         for closer in (self.context.close, self.browser.close, self.pw.stop):
             try:
                 await closer()
@@ -396,13 +586,27 @@ class Recorder:
         s = self.session
         return {"active": s is not None, "url": s.current_url() if s else ""}
 
-    async def start(self, base_url, path):
+    def _check_replay(self, base_url, steps):
+        """Prüft die Schritte bis zur Stopmarke wie der Runner ein Profil und gibt sie bereinigt zurück."""
+        if not isinstance(steps, list) or not steps:
+            raise RecorderError("Für die Wiedergabe fehlen die Schritte bis zur Stopmarke.", 422)
+        errors = validate_profile({"name": "wiedergabe", "base_url": base_url, "steps": steps})
+        if not errors:
+            for i, step in enumerate(steps, 1):
+                if step["op"] == "goto" and not is_allowed_url(resolve_url(base_url, step["value"]), self.allowed_hosts):
+                    errors.append(f"Schritt {i}: goto-Ziel liegt außerhalb der erlaubten Hosts.")
+        if errors:
+            raise RecorderError("Wiedergabe nicht möglich: " + " ".join(errors[:3]), 422)
+        return [{k: step[k] for k in ("op", "selector", "value") if step.get(k)} for step in steps]
+
+    async def start(self, base_url, path, replay=None):
         if self.session is not None or self._starting:
             raise RecorderError("Es läuft bereits eine Aufnahme.", 409)
         if not isinstance(base_url, str) or url_host(base_url) not in self.allowed_hosts:
             raise RecorderError("Die Basis-URL liegt nicht in SS_ALLOWED_HOSTS.", 422)
         if not is_plain_path(path):
             raise RecorderError("Der Startpfad muss mit / beginnen.", 422)
+        replay_steps = self._check_replay(base_url, replay) if replay is not None else None
         self._starting = True
         pw = browser = None
         try:
@@ -446,8 +650,12 @@ class Recorder:
             raise
         finally:
             self._starting = False
+        if replay_steps:
+            session.replay = Replay(replay_steps, base_url)
         self.session = session
         self._watchdog = asyncio.ensure_future(self._watch(session))
+        if replay_steps:  # beginnt, sobald ein Betrachter verbunden ist; das goto steht schon im Profil
+            return {"viewport": VIEWPORT, "replay": {"total": len(replay_steps)}}
         return {"viewport": VIEWPORT, "step": {"op": "goto", "value": path}}
 
     async def _watch(self, session):

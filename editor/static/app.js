@@ -13,6 +13,7 @@
   let ops = [];
   let isNew = false;
   let steps = [];
+  let markerStep = null; // Stopmarke: der Schritt, nach dem die Aufnahme weitergehen soll (nur im Browserfenster, nicht im Profil)
 
   function el(tag, props, children) {
     const node = document.createElement(tag);
@@ -115,11 +116,33 @@
       });
       const del = el("button", { type: "button", text: "✕", title: "Schritt entfernen", class: "danger" });
       del.addEventListener("click", () => {
+        if (markerStep === step) markerStep = null;
         steps.splice(i, 1);
         renderSteps();
       });
 
-      list.appendChild(el("li", { class: "step" }, [select, selector, value, comment, el("div", { class: "tools" }, [up, down, del])]));
+      const marked = step === markerStep;
+      const flag = el("button", {
+        type: "button",
+        text: "⚑",
+        class: "flag" + (marked ? " active" : ""),
+        title: marked
+          ? "Stopmarke entfernen"
+          : "Stopmarke nach diesem Schritt setzen: Die Aufnahme spielt bis hier ab und zeichnet ab hier weiter auf",
+        "aria-label": "Stopmarke",
+        "aria-pressed": marked ? "true" : "false",
+      });
+      flag.addEventListener("click", () => {
+        markerStep = marked ? null : step;
+        renderSteps();
+      });
+
+      list.appendChild(
+        el("li", { class: "step" }, [select, selector, value, comment, el("div", { class: "tools" }, [flag, up, down, del])])
+      );
+      if (marked) {
+        list.appendChild(el("li", { class: "marker-line", text: "⚑ Stopmarke: bis hier abspielen, ab hier aufzeichnen" }));
+      }
     });
   }
 
@@ -155,6 +178,7 @@
       value: s.value || "",
       comment: s.comment || "",
     }));
+    markerStep = null;
     $("delete").hidden = fresh;
     say([]);
     renderSteps();
@@ -248,7 +272,9 @@
 
 
   // ---------- Aufnahme-Modus ----------
-  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null };
+  // insert/after: neue Schritte kommen hinter den Schritt "after" (Stopmarke), statt ans Ende.
+  // replaySteps: die Schritte, die der Recorder bis zur Marke abspielt (zum Zuordnen von "at").
+  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null };
 
   function note(kind, text) {
     const box = $("rec-note");
@@ -268,7 +294,36 @@
       rec.frame = null;
       $("live").removeAttribute("src");
       $("rec-select").hidden = true;
+      $("rec-replay").hidden = true;
+      rec.insert = false;
+      rec.after = null;
+      rec.replaySteps = null;
+      if (markerStep) {
+        markerStep = null; // die Marke gehörte zu dieser Aufnahme
+        renderSteps();
+      }
     }
+  }
+
+  // Anzeige der Wiedergabe bis zur Stopmarke. buttons: welche Knöpfe gerade Sinn haben.
+  function showReplay(text, buttons) {
+    $("rec-replay").hidden = false;
+    $("rec-replay-text").textContent = text;
+    $("rp-resume").hidden = !buttons.resume;
+    $("rp-retry").hidden = !buttons.retry;
+    $("rp-resume").textContent = buttons.resume || "";
+  }
+
+  function onReplayDone(event) {
+    $("rec-replay").hidden = true;
+    if (rec.replaySteps) {
+      // Neue Schritte kommen hinter den letzten abgespielten bzw. übersprungenen Schritt.
+      rec.after = event.at > 0 ? rec.replaySteps[event.at - 1] : null;
+      rec.insert = true;
+    }
+    if (!rec.replaySteps) return note("ok", "Wiedergabe beendet. Jetzt wird aufgezeichnet.");
+    const where = event.at > 0 ? "hinter Schritt " + event.at : "am Anfang";
+    note("ok", "Wiedergabe beendet. Jetzt wird aufgezeichnet, neue Schritte kommen " + where + ".");
   }
 
   function setPick(kind) {
@@ -302,8 +357,23 @@
       rec.viewport = event.viewport;
       $("rec-url").textContent = event.url || "";
     } else if (event.t === "step") {
-      steps.push({ op: event.step.op, selector: event.step.selector || "", value: event.step.value || "", comment: event.step.comment || "" });
+      const added = { op: event.step.op, selector: event.step.selector || "", value: event.step.value || "", comment: event.step.comment || "" };
+      const at = rec.insert && rec.after ? steps.indexOf(rec.after) : -1;
+      if (rec.insert && rec.after && at < 0) rec.insert = false; // der Bezugsschritt wurde entfernt: ans Ende
+      if (rec.insert) {
+        steps.splice(at + 1, 0, added); // at = -1: ganz an den Anfang
+        rec.after = added;
+      } else {
+        steps.push(added);
+      }
       renderSteps();
+    } else if (event.t === "replay") {
+      showReplay("Wiedergabe: Schritt " + event.index + " von " + event.total + " (" + event.label + ")", { resume: "", retry: false });
+    } else if (event.t === "replay_pause") {
+      const resume = event.kind === "manual" ? "Erledigt, weiter" : "Schritt überspringen";
+      showReplay(event.message, { resume, retry: !!event.can_retry });
+    } else if (event.t === "replay_done") {
+      onReplayDone(event);
     } else if (event.t === "url") {
       $("rec-url").textContent = event.url;
     } else if (event.t === "blocked") {
@@ -351,16 +421,34 @@
   }
 
   async function startRecording() {
-    const res = await api("POST", "/api/rec/start", { base_url: $("f-base").value.trim(), path: $("rec-path").value.trim() || "/" });
+    const body = { base_url: $("f-base").value.trim(), path: $("rec-path").value.trim() || "/" };
+    // Mit Stopmarke: Schritte bis zur Marke werden erst abgespielt, danach wird dahinter weiter aufgezeichnet
+    const markerAt = markerStep ? steps.indexOf(markerStep) : -1;
+    const replaySteps = markerAt >= 0 ? steps.slice(0, markerAt + 1) : null;
+    if (replaySteps) {
+      body.replay = replaySteps.map((s) => {
+        const out = { op: s.op };
+        if (s.selector) out.selector = s.selector;
+        if (s.value) out.value = s.value;
+        return out;
+      });
+    }
+    const res = await api("POST", "/api/rec/start", body);
     if (!res.ok) return say(apiError(res));
-    const start = { op: res.data.step.op, selector: "", value: res.data.step.value, comment: "" };
-    // Ein leeres oder nur aus dem Start-goto bestehendes Profil wird ersetzt, sonst angehängt
-    if (steps.length === 0 || (steps.length === 1 && steps[0].op === "goto")) steps = [start];
-    else steps.push(start);
+    rec.replaySteps = replaySteps;
+    rec.insert = false;
+    rec.after = null;
+    if (!replaySteps) {
+      const start = { op: res.data.step.op, selector: "", value: res.data.step.value, comment: "" };
+      // Ein leeres oder nur aus dem Start-goto bestehendes Profil wird ersetzt, sonst angehängt
+      if (steps.length === 0 || (steps.length === 1 && steps[0].op === "goto")) steps = [start];
+      else steps.push(start);
+    }
     renderSteps();
     say([]);
     note("warn", "");
     setRecording(true);
+    if (replaySteps) showReplay("Wiedergabe startet …", { resume: "", retry: false });
     openSocket();
   }
 
@@ -482,6 +570,9 @@
   $("rec-show").addEventListener("change", () => ($("rec-text").type = $("rec-show").checked ? "text" : "password"));
   $("rec-start").addEventListener("click", startRecording);
   $("rec-stop").addEventListener("click", stopRecording);
+  $("rp-resume").addEventListener("click", () => send({ t: "replay_resume" }));
+  $("rp-retry").addEventListener("click", () => send({ t: "replay_retry" }));
+  $("rp-stop").addEventListener("click", () => send({ t: "replay_stop" }));
 
   $("token-form").addEventListener("submit", connect);
   $("new-profile").addEventListener("click", () => {

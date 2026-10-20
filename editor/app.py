@@ -220,7 +220,7 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None):
         if not isinstance(data, dict):
             raise HTTPException(400, "Ungültige Anfrage.")
         try:
-            return await rec.start(data.get("base_url"), data.get("path", "/"))
+            return await rec.start(data.get("base_url"), data.get("path", "/"), data.get("replay"))
         except RecorderError as exc:
             raise HTTPException(exc.status, str(exc))
 
@@ -274,6 +274,10 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None):
 
         recorder.viewer = ws
         await ws.send_json({"t": "hello", "viewport": VIEWPORT, "url": session.current_url()})
+        snapshot = session.replay_snapshot()  # wer sich neu verbindet, sieht den Stand der Wiedergabe
+        if snapshot is not None:
+            await ws.send_json(snapshot)
+        session.begin_replay()
         pump_task = asyncio.ensure_future(pump(ws, session))
         frames_task = asyncio.ensure_future(stream_frames(ws.send_bytes, session))
         try:

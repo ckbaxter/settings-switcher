@@ -71,6 +71,7 @@ Der Runner hat Zugriff auf die Fritzbox, deshalb gilt:
 | Editor: Token-Pflicht, Host-Prüfung, Rate-Limit, strenge CSP, nur lokal gebunden, **keine** Fritzbox-Zugangsdaten, startet keine Container | Selbst ein geknackter Editor kann nur Profile ändern |
 | Live-Recorder: gleiche Host-Sperre wie der Runner (`SS_ALLOWED_HOSTS`), WebSocket nur mit Token, Host- und Origin-Prüfung, nur eine Sitzung und ein Betrachter, Zeitgrenzen (180 s Leerlauf, 600 s gesamt), Popups/Dialoge/Downloads aus, Container wie der Runner gehärtet | Der aufgezeichnete Browser kann nur die Fritzbox erreichen und nur mit gültigem Token gesteuert werden |
 | Aufgezeichnete Passwörter: Passwortfelder werden immer als `${SS_PASSWORD}` gespeichert, fester Text ist dort abgelehnt; andere Felder speichern nur, was du ausdrücklich als festen Text wählst | Zugangsdaten stehen weder im Profil noch im Editor-Log |
+| Wiedergabe bis zur Stopmarke: Die Schritte werden wie ein Profil geprüft (nur feste Operationen, nur erlaubte Hosts), `${SS_…}`-Werte und `TODO`-Schritte spielt der Recorder nie selbst ab | Auch beim Abspielen kommen keine Zugangsdaten in den Recorder, Logins tippst du selbst ein |
 
 Außerdem sinnvoll:
 
@@ -156,6 +157,33 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 5. Mit `./run.sh -s <profil>` testen und in der Fritzbox prüfen, ob die Änderung wirklich da ist. Bau nach
    dem Übernehmen eine `expect_*`-Prüfung ein (siehe oben), sonst meldet der Lauf Erfolg, ohne etwas zu prüfen.
 
+### Ab einer Stelle weiter aufzeichnen (Stopmarke)
+
+Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem FRITZ!OS-Update), musst du nicht alles neu aufnehmen:
+
+1. Profil öffnen und beim letzten unveränderten Schritt auf **⚑** klicken. Das ist die Stopmarke; ein
+   zweiter Klick entfernt sie. Die Marke gibt es nur im Browserfenster, sie steht nicht im Profil.
+2. **Aufnahme starten.** Der Recorder spielt die Schritte bis zur Marke im Live-Browser ab. Das wird nicht
+   erneut aufgezeichnet.
+3. Danach zeichnest du wie gewohnt weiter auf. Neue Schritte kommen **hinter die Marke**, die bisherigen
+   Folgeschritte bleiben stehen. Veraltete Schritte entfernst du mit ✕.
+4. Aufnahme beenden, Schritte prüfen, speichern.
+
+Beim Abspielen hält der Recorder an, wenn er einen Schritt nicht selbst ausführen darf oder nicht kann:
+
+- **Login und TODO:** Ein `fill` mit `${SS_USER}` / `${SS_PASSWORD}` spielt der Recorder nie selbst ab, er kennt
+  keine Zugangsdaten. Dasselbe gilt für Schritte mit `TODO`. Du erledigst den Schritt im Live-Bild (bei einem
+  Textfeld ist es schon markiert, getippt wird im Eingabefeld unter dem Bild) und klickst **Erledigt, weiter**.
+  Das wird nicht aufgezeichnet. Ein Login braucht also bei jeder Aufnahme mit Marke deine Eingabe.
+- **Schritt schlägt fehl** (z. B. Selektor passt nicht mehr): **Wiederholen**, **Schritt überspringen**
+  (wenn du ihn selbst erledigt hast) oder **Hier aufzeichnen**.
+- **Hier aufzeichnen** beendet die Wiedergabe an der aktuellen Stelle, neue Schritte kommen dahinter. Das geht auch
+  mitten im Lauf; der gerade laufende Schritt wird noch beendet.
+
+Während die Wiedergabe läuft, sind Klicks im Live-Bild gesperrt (beim Anhalten sind sie erlaubt, aber nicht
+aufgezeichnet). Prüfungen („Text“, „Sichtbar“ …) gehen erst danach. Die Zeitgrenzen der Aufnahme (180 s
+Leerlauf, 600 s gesamt) gelten auch für die Wiedergabe.
+
 Wichtig:
 
 - Die Schrittliste lebt im Browserfenster und geht beim Neuladen verloren. Vor dem Beenden speichern.
@@ -197,11 +225,16 @@ Versionskopplung von Playwright-Pin und -Image, die Neubau-Entscheidung von `run
 Editor-Oberfläche im echten Browser (inkl. XSS- und CSP-Prüfung), Läufe des Runners in Chromium
 gegen eine lokale Testseite, der Live-Recorder (Selektoren, Passwortbehandlung, Scrollen,
 WebSocket-Absicherung) und der ganze Weg „im Editor aufzeichnen → speichern → mit dem Runner abspielen“
-gegen eine lokale Testseite.
+gegen eine lokale Testseite. Ebenso die Stopmarke (Abspielen bis zur Marke, Anhalten bei Login-, TODO- und
+fehlgeschlagenen Schritten, Einfügen hinter der Marke, Bedienung in der Oberfläche), ebenfalls nur gegen die
+lokale Testseite.
 
 Manuell getestet (vom Betreiber bestätigt): Docker-Build der Images, `run.sh` mit echtem `docker run`
 und Aufzeichnen sowie Abspielen gegen eine echte Fritzbox 7590 mit FRITZ!OS 8.25 (Portfreigabe an/aus).
 Der Docker-Teil läuft nicht in den automatischen Tests.
+
+Noch nicht manuell getestet: die Stopmarke gegen eine echte Fritzbox (insbesondere das Abspielen des Logins mit
+Anhalten und Selbst-Eintippen im Live-Browser).
 
 Grenzen:
 

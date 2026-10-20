@@ -44,6 +44,12 @@
           Klicke im Live-Browser durch den Ablauf. Jede Aktion erscheint unten als Schritt.
           Der Browser erreicht nur die erlaubten Hosts. Passwörter werden nie gespeichert.
         </p>
+        <p class="hint">
+          Ablauf hat sich geändert? Setze mit ⚑ bei einem Schritt eine Stopmarke. Die Aufnahme spielt dann die
+          Schritte bis dahin ab und zeichnet ab dort weiter auf. Neue Schritte kommen hinter die Marke, die
+          bisherigen Folgeschritte bleiben stehen (bei Bedarf entfernen). Zugangsdaten kennt der Recorder nicht:
+          Bei Login-Schritten hält die Wiedergabe an, du tippst selbst ein (wird nicht aufgezeichnet).
+        </p>
         <div class="rec-bar">
           <label for="rec-path">Startpfad</label>
           <input id="rec-path" value="/" maxlength="200">
@@ -58,6 +64,12 @@
             <button type="button" data-kind="expect_checked">Aktiviert</button>
             <button type="button" data-kind="expect_unchecked">Nicht aktiviert</button>
             <button type="button" data-kind="wait_for">Warten auf</button>
+          </div>
+          <div id="rec-replay" class="rec-bar replay" role="status" hidden>
+            <span id="rec-replay-text"></span>
+            <button id="rp-resume" type="button" class="primary" hidden></button>
+            <button id="rp-retry" type="button" hidden>Wiederholen</button>
+            <button id="rp-stop" type="button" title="Wiedergabe hier beenden und ab hier aufzeichnen">Hier aufzeichnen</button>
           </div>
           <div class="viewer"><img id="live" alt="Live-Ansicht des Browsers" draggable="false"></div>
           <div id="rec-scroll" class="rec-bar" role="group" aria-label="Seite im Live-Browser scrollen">

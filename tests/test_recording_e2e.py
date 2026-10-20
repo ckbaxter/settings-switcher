@@ -264,3 +264,142 @@ def test_touch_swipe_scrolls_and_does_not_click(live, server):
             wait_steps(page, 1)  # kein Klick-Schritt durch das Wischen
         finally:
             browser.close()
+
+
+# ---------- Stopmarke: bis hierher abspielen, ab hier weiter aufzeichnen ----------
+
+
+def write_profile(profiles, server, steps, name="ablauf"):
+    data = {"name": name, "description": "", "base_url": server, "timeout_ms": 15000, "steps": steps}
+    (profiles / f"{name}.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+
+def open_profile(page, url):
+    connect(page, url)
+    page.click("#profile-list button")
+
+
+def step_field(page, index, field):
+    """field: 0 = Selektor, 1 = Wert"""
+    return page.locator("#steps .step").nth(index).locator("input").nth(field).input_value()
+
+
+LOGIN_STEPS = [
+    {"op": "goto", "value": "/"},
+    {"op": "fill", "selector": "#user", "value": "${SS_USER}"},
+    {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SS_PASSWORD}"},
+    {"op": "click", "selector": "#login"},
+]
+
+
+def test_stopmarke_spielt_bis_zur_marke_ab_und_zeichnet_dahinter_weiter(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, [
+        {"op": "goto", "value": "/"},
+        {"op": "click", "selector": "#login"},
+        {"op": "check", "selector": "#enabled"},
+        {"op": "click", "selector": 'role=button[name="Übernehmen"]'},
+        {"op": "expect_text", "selector": "#status", "value": "gespeichert"},
+    ])
+    open_profile(page, url)
+    wait_steps(page, 5)
+
+    # Marke nach Schritt 3 setzen, wieder entfernen, wieder setzen
+    flag = page.locator("#steps .step").nth(2).locator(".flag")
+    flag.click()
+    expect(page.locator("#steps .marker-line")).to_have_count(1)
+    expect(flag).to_have_attribute("aria-pressed", "true")
+    flag.click()
+    expect(page.locator("#steps .marker-line")).to_have_count(0)
+    flag.click()
+    expect(page.locator("#steps .marker-line")).to_have_count(1)
+
+    page.click("#rec-start")
+    expect(page.locator("#rec-note")).to_contain_text("Wiedergabe beendet")
+    expect(page.locator("#rec-replay")).to_be_hidden()
+    wait_steps(page, 5)  # Abspielen zeichnet nichts auf, auch kein zusätzliches goto
+
+    # Der Link "Hilfe" ist nur sichtbar, wenn die Wiedergabe den Login geklickt hat
+    live_click(page, 40, 292)
+    wait_steps(page, 6)
+    assert [step_field(page, i, 0) for i in range(6)] == [
+        "", "#login", "#enabled", 'role=link[name="Hilfe"]', 'role=button[name="Übernehmen"]', "#status",
+    ]  # der neue Schritt steht hinter der Marke, die alten Folgeschritte bleiben
+
+    page.click("#rec-stop")
+    expect(page.locator("#rec-live")).to_be_hidden()
+    expect(page.locator("#steps .marker-line")).to_have_count(0)  # die Marke gehörte zu dieser Aufnahme
+    wait_steps(page, 6)
+
+
+def test_stopmarke_haelt_bei_login_schritten_an_und_zeichnet_das_tippen_nicht_auf(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, LOGIN_STEPS)
+    open_profile(page, url)
+    wait_steps(page, 4)
+    page.locator("#steps .step").nth(3).locator(".flag").click()  # Marke nach dem Login-Klick
+    page.click("#rec-start")
+
+    expect(page.locator("#rec-replay")).to_contain_text("Zugangsdaten")
+    expect(page.locator("#rp-resume")).to_have_text("Erledigt, weiter")
+    page.fill("#rec-text", "alice")
+    page.click("#rec-text-form button[type=submit]")
+    page.click("#rp-resume")
+    expect(page.locator("#rec-replay")).to_contain_text("Schritt 3")
+    page.fill("#rec-text", "geheim-pw-123")
+    page.click("#rec-text-form button[type=submit]")
+    page.click("#rp-resume")
+    expect(page.locator("#rec-note")).to_contain_text("Wiedergabe beendet")
+    wait_steps(page, 4)  # das eigene Tippen wurde nicht als Schritt aufgezeichnet
+
+    live_click(page, 30, 210)  # Freigabe aktivieren, nur nach dem Login (Klick wurde abgespielt) möglich
+    wait_steps(page, 5)
+    values = [step_field(page, i, 1) for i in range(5)]
+    assert values[1:3] == ["${SS_USER}", "${SS_PASSWORD}"]
+    assert "alice" not in values and "geheim-pw-123" not in values
+    assert page.locator("#steps .step").nth(4).locator("select").input_value() == "check"
+
+
+def test_hier_aufzeichnen_beendet_die_wiedergabe_und_fuegt_dort_ein(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, LOGIN_STEPS)
+    open_profile(page, url)
+    wait_steps(page, 4)
+    page.locator("#steps .step").nth(3).locator(".flag").click()
+    page.click("#rec-start")
+    expect(page.locator("#rec-replay")).to_contain_text("Zugangsdaten")  # hält vor Schritt 2
+
+    page.click("#rp-stop")
+    expect(page.locator("#rec-note")).to_contain_text("hinter Schritt 1")
+    expect(page.locator("#rec-replay")).to_be_hidden()
+    live_click(page, 80, 135)  # Anmelden
+    wait_steps(page, 5)
+    assert [step_field(page, i, 0) for i in range(5)] == [
+        "", "#login", "#user", 'input[name="pwd"]', "#login",
+    ]  # hinter Schritt 1 eingefügt, der Rest blieb stehen
+
+
+def test_stopmarke_entfaellt_mit_dem_schritt(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, LOGIN_STEPS)
+    open_profile(page, url)
+    wait_steps(page, 4)
+    page.locator("#steps .step").nth(2).locator(".flag").click()
+    expect(page.locator("#steps .marker-line")).to_have_count(1)
+    page.locator("#steps .step").nth(2).get_by_role("button").last.click()  # Schritt entfernen
+    wait_steps(page, 3)
+    expect(page.locator("#steps .marker-line")).to_have_count(0)
+
+
+def test_aufnahme_ohne_marke_verhaelt_sich_wie_vorher(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, LOGIN_STEPS[:1])
+    open_profile(page, url)
+    wait_steps(page, 1)
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    expect(page.locator("#rec-replay")).to_be_hidden()
+    wait_steps(page, 1)
+    live_click(page, 80, 135)
+    wait_steps(page, 2)  # am Ende angehängt
+    assert page.locator("#steps .step").nth(1).locator("select").input_value() == "click"
