@@ -3,7 +3,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from editor.app import create_app
+from editor.app import _ip_allowed, create_app, parse_allowed_ips
 
 TOKEN = "t" * 24
 H = {"X-Token": TOKEN}
@@ -166,3 +166,61 @@ def test_saved_profile_is_readable_by_other_users(client, tmp_path):
     finally:
         os.umask(old)
     assert stat.S_IMODE((tmp_path / "demo.json").stat().st_mode) == 0o644
+
+
+def ip_client(tmp_path, allowed_ips, peer):
+    return TestClient(create_app(tmp_path, TOKEN, ["testserver"], allowed_ips=allowed_ips), client=(peer, 50000))
+
+
+def test_without_ip_list_everyone_is_allowed(tmp_path):
+    assert ip_client(tmp_path, "", "203.0.113.9").get("/api/profiles", headers=H).status_code == 200
+    assert ip_client(tmp_path, None, "203.0.113.9").get("/").status_code == 200
+
+
+def test_ip_list_allows_listed_address_and_network(tmp_path):
+    assert ip_client(tmp_path, "172.18.0.5", "172.18.0.5").get("/api/profiles", headers=H).status_code == 200
+    assert ip_client(tmp_path, "10.0.0.1, 192.168.1.0/24", "192.168.1.77").get("/").status_code == 200
+
+
+def test_ip_list_blocks_other_addresses_everywhere(tmp_path):
+    client = ip_client(tmp_path, "172.18.0.5", "172.18.0.6")
+    for path in ("/", "/static/app.js", "/api/profiles"):
+        res = client.get(path, headers=H)
+        assert res.status_code == 403
+        assert "content-security-policy" not in res.headers or res.text.startswith("Zugriff")
+    assert client.put("/api/profiles/demo", headers=H, json=PROFILE).status_code == 403
+    assert not list(tmp_path.glob("*.json"))
+
+
+def test_forwarded_for_header_is_ignored(tmp_path):
+    client = ip_client(tmp_path, "172.18.0.5", "203.0.113.9")
+    res = client.get("/api/profiles", headers={**H, "X-Forwarded-For": "172.18.0.5", "X-Real-IP": "172.18.0.5"})
+    assert res.status_code == 403
+
+
+def test_invalid_ip_entry_refuses_to_start(tmp_path):
+    with pytest.raises(RuntimeError, match="EDITOR_ALLOWED_IPS"):
+        create_app(tmp_path, TOKEN, ["localhost"], allowed_ips="172.18.0.5,kein-netz")
+
+
+@pytest.mark.parametrize(
+    "client_host, expected",
+    [
+        ("172.18.0.5", True),
+        ("::ffff:172.18.0.5", True),  # IPv4 als IPv6-Adresse (Dual-Stack-Socket)
+        ("172.18.0.6", False),
+        ("::1", False),
+        ("testclient", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_ip_allowed_matching(client_host, expected):
+    assert _ip_allowed(client_host, parse_allowed_ips("172.18.0.5")) is expected
+
+
+def test_parse_allowed_ips_mixed_families():
+    nets = parse_allowed_ips("10.0.0.0/8, fd00::/8,,")
+    assert _ip_allowed("10.1.2.3", nets) and _ip_allowed("fd00::1", nets)
+    assert not _ip_allowed("11.0.0.1", nets) and not _ip_allowed("fe80::1", nets)
+    assert parse_allowed_ips("") == [] and parse_allowed_ips(None) == []

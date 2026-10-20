@@ -111,3 +111,15 @@ def test_live_session_over_websocket(tmp_path, server):
         finally:
             assert client.post("/api/rec/stop", headers=H).json() == {"ok": True}
         assert client.get("/api/rec/state", headers=H).json()["active"] is False
+
+
+def test_ws_rejects_address_outside_ip_list(tmp_path):
+    app = create_app(tmp_path, TOKEN, ["testserver"], recorder=Recorder({"127.0.0.1"}), allowed_ips="172.18.0.5")
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with TestClient(app, client=("203.0.113.9", 50000)).websocket_connect("/api/rec/ws"):
+            pass
+    assert exc.value.code == 1008
+    # Eine erlaubte Adresse kommt bis zur Token-Prüfung (und scheitert dort an der falschen Anmeldung).
+    with TestClient(app, client=("172.18.0.5", 50000)).websocket_connect("/api/rec/ws") as ws:
+        ws.send_json({"t": "auth", "token": "falsch"})
+        assert ws.receive_json()["t"] == "error"
