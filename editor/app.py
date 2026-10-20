@@ -3,6 +3,8 @@
 Sicherheit:
 - Alle /api-Routen brauchen das Header-Token (EDITOR_TOKEN, mind. 16 Zeichen).
 - Host-Header wird gegen EDITOR_ALLOWED_HOSTS geprüft (Schutz vor DNS-Rebinding).
+- Optional: EDITOR_ALLOWED_IPS (IPs/CIDR-Netze) begrenzt, von welcher Adresse aus der Editor
+  erreichbar ist. Geprüft wird nur die direkte Gegenstelle der Verbindung, nie X-Forwarded-For.
 - Es gibt keine CORS-Freigabe; das Token liegt nie in Cookies.
 - Der Editor hat keinen Zugriff auf Fritzbox-Zugangsdaten und startet keine Container.
 - Der Aufnahme-Modus (Live-Browser) ist nur aktiv, wenn ein Recorder übergeben wird
@@ -10,6 +12,7 @@ Sicherheit:
 """
 
 import asyncio
+import ipaddress
 import json
 import logging
 import os
@@ -46,6 +49,39 @@ def _host_from_headers(headers):
     return host.split(":", 1)[0]
 
 
+def parse_allowed_ips(value):
+    """Liest eine kommagetrennte Liste aus IPs und CIDR-Netzen (z. B. "172.18.0.5,192.168.1.0/24").
+
+    Leer oder None = keine Einschränkung. Ein ungültiger Eintrag stoppt den Start (fail closed),
+    damit ein Tippfehler nicht still den Schutz abschaltet.
+    """
+    if value is None:
+        return []
+    items = value.split(",") if isinstance(value, str) else list(value)
+    networks = []
+    for item in items:
+        item = str(item).strip()
+        if not item:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            raise RuntimeError(f"EDITOR_ALLOWED_IPS: ungültiger Eintrag {item!r} (erwartet IP oder CIDR-Netz).")
+    return networks
+
+
+def _ip_allowed(client_host, networks):
+    if not networks:
+        return True
+    try:
+        ip = ipaddress.ip_address(client_host or "")
+    except ValueError:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return any(ip.version == net.version and ip in net for net in networks)
+
+
 def _write_error(exc):
     """Verständliche Meldung statt nacktem 500 (meist: der Container-Benutzer darf in profiles/ nicht schreiben)."""
     log.error("Profil konnte nicht geschrieben werden: %s", exc)
@@ -57,17 +93,24 @@ def _write_error(exc):
     return f"Profil konnte nicht gespeichert werden ({exc.__class__.__name__}). Details im Container-Log."
 
 
-def create_app(profiles_dir, token, allowed_hosts, recorder=None):
+def create_app(profiles_dir, token, allowed_hosts, recorder=None, allowed_ips=None):
     if not token or len(token) < 16:
         raise RuntimeError("EDITOR_TOKEN fehlt oder ist zu kurz (mindestens 16 Zeichen).")
     profiles_dir = Path(profiles_dir)
     allowed_hosts = {h.strip().lower() for h in allowed_hosts if h.strip()}
+    ip_networks = parse_allowed_ips(allowed_ips)
     failures = deque()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
+    def peer_ip(conn):
+        return conn.client.host if conn.client else None
+
     @app.middleware("http")
     async def guard(request: Request, call_next):
+        if not _ip_allowed(peer_ip(request), ip_networks):
+            log.warning("Zugriff von %s abgelehnt (nicht in EDITOR_ALLOWED_IPS).", peer_ip(request))
+            return Response("Zugriff von dieser Adresse nicht erlaubt.", status_code=403, media_type="text/plain")
         if _host_of(request) not in allowed_hosts:
             return Response("Host nicht erlaubt.", status_code=400, media_type="text/plain")
         response = await call_next(request)
@@ -245,6 +288,10 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None):
     async def rec_ws(ws: WebSocket):
         origin = ws.headers.get("origin")
         origin_host = (urlparse(origin).hostname or "").lower() if origin else None
+        if not _ip_allowed(peer_ip(ws), ip_networks):
+            log.warning("WebSocket von %s abgelehnt (nicht in EDITOR_ALLOWED_IPS).", peer_ip(ws))
+            await ws.close(code=1008)
+            return
         if _host_from_headers(ws.headers) not in allowed_hosts or (origin and origin_host not in allowed_hosts):
             await ws.close(code=1008)
             return
@@ -319,4 +366,5 @@ def create_app_from_env():
         token=os.environ.get("EDITOR_TOKEN", ""),
         allowed_hosts=hosts,
         recorder=recorder,
+        allowed_ips=os.environ.get("EDITOR_ALLOWED_IPS", ""),
     )

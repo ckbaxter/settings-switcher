@@ -20,4 +20,4 @@ ENV PYTHONPATH=/app \
 
 USER pwuser
 EXPOSE 8080
-CMD ["uvicorn", "--factory", "editor.app:create_app_from_env", "--host", "0.0.0.0", "--port", "8080", "--no-server-header"]
+CMD ["uvicorn", "--factory", "editor.app:create_app_from_env", "--host", "0.0.0.0", "--port", "8080", "--no-server-header", "--no-proxy-headers"]

@@ -23,6 +23,7 @@ services:
     environment:
       EDITOR_TOKEN: ${EDITOR_TOKEN:?EDITOR_TOKEN in .env setzen (mindestens 16 Zeichen)}
       EDITOR_ALLOWED_HOSTS: ${EDITOR_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      EDITOR_ALLOWED_IPS: ${EDITOR_ALLOWED_IPS:-}
     volumes:
       - ./profiles:/profiles
     read_only: true
@@ -50,6 +51,7 @@ services:
     environment:
       EDITOR_TOKEN: ${EDITOR_TOKEN:?EDITOR_TOKEN in .env setzen (mindestens 16 Zeichen)}
       EDITOR_ALLOWED_HOSTS: ${EDITOR_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      EDITOR_ALLOWED_IPS: ${EDITOR_ALLOWED_IPS:-}
       RECORDER_ENABLED: "1"
       SS_ALLOWED_HOSTS: ${SS_ALLOWED_HOSTS:?SS_ALLOWED_HOSTS in .env setzen (Fritzbox-IP)}
       SS_IGNORE_HTTPS_ERRORS: ${SS_IGNORE_HTTPS_ERRORS:-0}

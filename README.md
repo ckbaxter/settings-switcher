@@ -52,9 +52,28 @@ Editor und Recorder sind eigene Images und werden mit `docker compose … up -d 
 - Beide Listen enthalten nur Hostnamen oder IPs, kommagetrennt, ohne `http://`, Port oder Pfad. Es sind reine
   Textvergleiche: Eine IP deckt den Hostnamen dazu nicht ab und umgekehrt.
 - `EDITOR_ALLOWED_HOSTS` ist **nicht** die Adresse deines Endgeräts, sondern die des Servers, die du in den
-  Browser eintippst. Wer den Editor erreichen darf, steuern `EDITOR_BIND`, die Firewall und das Token.
+  Browser eintippst. Wer den Editor erreichen darf, steuern `EDITOR_BIND`, `EDITOR_ALLOWED_IPS`, die Firewall
+  und das Token.
 - `SS_ALLOWED_HOSTS` kommt nur aus der Umgebung, nie aus dem Profil. Nimm die IP statt `fritz.box`, und
   `base_url` im Profil muss dazu passen.
+
+### Zugriff auf bestimmte IPs begrenzen (`EDITOR_ALLOWED_IPS`)
+
+Optional in `.env`: kommagetrennte IPs oder CIDR-Netze (z. B. `172.18.0.5` oder `192.168.1.0/24`), von denen
+aus Editor und Recorder erreichbar sind. Alle anderen bekommen `403` (WebSocket: Abbruch). Leer = keine
+Einschränkung. Ein ungültiger Eintrag lässt den Dienst nicht starten.
+
+- Geprüft wird die direkte Gegenstelle der TCP-Verbindung, nicht `X-Forwarded-For` (uvicorn läuft mit
+  `--no-proxy-headers`). Hinter einem Reverse Proxy (z. B. Nginx Proxy Manager) trägst du also die Adresse des
+  **Proxys** ein, nicht die der Endgeräte.
+- Welche Adresse beim Editor ankommt, hängt vom Docker-Netz ab. Am eindeutigsten: Editor und Proxy in dasselbe
+  Docker-Netz legen und im Proxy auf `settings-switcher-editor:8080` zeigen. Dann ist die Quelle die feste
+  Container-IP des Proxys (`docker inspect`). Spricht der Proxy den veröffentlichten Port über die Host-IP an,
+  sieht der Editor je nach Docker-Setup meist die Gateway-Adresse der Bridge (oft `172.x.0.1`), nicht die des
+  Proxys. Im Zweifel `docker compose logs`: abgelehnte Zugriffe stehen dort mit der gesehenen Adresse.
+- Das ersetzt weder das Token noch `EDITOR_BIND` oder eine Firewall, es ergänzt sie.
+- Nicht getestet: Das Verhalten mit echtem Docker-Netz und Nginx Proxy Manager. Die Prüfung selbst ist durch
+  Tests abgedeckt (`tests/test_editor.py`, `tests/test_recorder_ws.py`).
 
 ## Sicherheitsmodell
 
@@ -68,7 +87,7 @@ Der Runner hat Zugriff auf die Fritzbox, deshalb gilt:
 | Keine Operation für freies JavaScript | Profile können nur die festen Schritte ausführen |
 | Container: `--rm`, `--read-only`, `--cap-drop ALL`, `no-new-privileges`, Speicher-/Prozesslimit, kein Port nach außen, läuft als dein Benutzer | Kleine Angriffsfläche, nichts bleibt zurück |
 | Harte Laufzeitgrenze (`SS_MAX_RUNTIME_S`, Standard 120 s) und nur ein Lauf gleichzeitig | Hängende Läufe bleiben nicht offen |
-| Editor: Token-Pflicht, Host-Prüfung, Rate-Limit, strenge CSP, nur lokal gebunden, **keine** Fritzbox-Zugangsdaten, startet keine Container | Selbst ein geknackter Editor kann nur Profile ändern |
+| Editor: Token-Pflicht, Host-Prüfung, optionale IP-Freigabe (`EDITOR_ALLOWED_IPS`), Rate-Limit, strenge CSP, nur lokal gebunden, **keine** Fritzbox-Zugangsdaten, startet keine Container | Selbst ein geknackter Editor kann nur Profile ändern |
 | Live-Recorder: gleiche Host-Sperre wie der Runner (`SS_ALLOWED_HOSTS`), WebSocket nur mit Token, Host- und Origin-Prüfung, nur eine Sitzung und ein Betrachter, Zeitgrenzen (180 s Leerlauf, 600 s gesamt), Popups/Dialoge/Downloads aus, Container wie der Runner gehärtet | Der aufgezeichnete Browser kann nur die Fritzbox erreichen und nur mit gültigem Token gesteuert werden |
 | Aufgezeichnete Passwörter: Passwortfelder werden immer als `${SS_PASSWORD}` gespeichert, fester Text ist dort abgelehnt; andere Felder speichern nur, was du ausdrücklich als festen Text wählst | Zugangsdaten stehen weder im Profil noch im Editor-Log |
 | Wiedergabe bis zur Stopmarke: Die Schritte werden wie ein Profil geprüft (nur feste Operationen, nur erlaubte Hosts), `${SS_…}`-Werte und `TODO`-Schritte spielt der Recorder nie selbst ab | Auch beim Abspielen kommen keine Zugangsdaten in den Recorder, Logins tippst du selbst ein |
