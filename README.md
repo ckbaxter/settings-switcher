@@ -13,8 +13,31 @@ Fritzbox-Portfreigabe (an/aus), wenn TR-064 nicht in Frage kommt.
 ```
 ./run.sh portfreigabe-an          # Profil ausführen
 ./run.sh -s portfreigabe-an       # Screenshot nach jedem Schritt (artifacts/)
+./run.sh -r 2 portfreigabe-an     # bei Exit 1 den ganzen Lauf bis zu 2-mal wiederholen
 ./run.sh --list                   # Profile anzeigen
 ```
+
+### Wiederholung bei Fehlern (`-r`)
+
+Läuft ein Profil manchmal nicht durch (meist Timing: die Fritzbox-Oberfläche lädt Inhalte nach), kann
+`run.sh` den **ganzen Lauf** neu starten, nicht nur den letzten Schritt. Jeder Versuch ist ein frischer
+Container mit neuem Browser und neuem Login, ein halb erledigter Zustand aus dem Versuch davor bleibt nicht hängen.
+
+- `-r <n>` (oder `SWITCHER_RETRIES=<n>` in der Shell) erlaubt bis zu `n` zusätzliche Versuche, 0 bis 5.
+  Standard ist 0, ohne die Option ändert sich nichts. Die Option steht nicht in `runner.env`, weil `run.sh`
+  diese Datei nur an den Container weiterreicht.
+- Wiederholt wird **nur bei Exit 1** (Schritt oder Prüfung fehlgeschlagen, auch Zeitgrenze). Exit 2
+  (Konfiguration, `TODO` im Profil) und Docker-Fehler (Exit 125 und höher) werden nie wiederholt.
+- Zwischen den Versuchen wartet `run.sh` `SWITCHER_RETRY_DELAY_S` Sekunden (Standard 15, höchstens 300).
+  Die Pause schützt vor einer Anmeldesperre der Fritzbox nach mehreren Fehlversuchen. Lieber wenige
+  Versuche (`-r 1` oder `-r 2`) als viele.
+- Nach dem letzten Fehlversuch endet `run.sh` mit Exit 1. Jeder Versuch legt bei einem Fehler seinen
+  eigenen Screenshot `…-fehler.png` in `artifacts/` ab.
+- **Sicher ist das nur, wenn ein zweiter Lauf harmlos ist.** `check`/`uncheck` setzen einen festen Zustand und
+  vertragen das. Ein `click`, der einen Zustand umschaltet, kann beim Wiederholen die Änderung wieder zurückdrehen.
+  Setze deshalb `check`/`uncheck` statt `click` auf Checkboxen und eine `expect_*`-Prüfung nach dem Übernehmen
+  (siehe Profil-Format). Der Runner weist im Log darauf hin, wenn ein Profil keine `expect_*`-Prüfung hat.
+- Nicht auf einer echten Fritzbox getestet. Die Wiederholung ist durch Tests mit der Docker-Attrappe abgedeckt.
 
 ## Einrichtung
 
@@ -225,6 +248,7 @@ Wichtig:
 | `run.sh`: „Profil … nicht lesbar: Permission denied“ | `./profiles` braucht `755`, die Profile `644` (neuere Editor-Versionen speichern so). Der Runner läuft mit `--cap-drop ALL`, daher kann auch root fremde Dateien nur mit passenden Rechten lesen. `run.sh` besser nicht mit `sudo` starten. Nach einem Update `docker compose --profile record up -d --build`. |
 | Lauf „ok“, aber nichts geändert | Meist falsche Richtung (`uncheck` statt `check` oder der Zustand war schon so), zu früher Logout oder fehlende Gegenprobe. `./run.sh -s` zeigt Screenshots pro Schritt. |
 | Schritt bricht ab | Selektor nicht (mehr) eindeutig, z. B. nach FRITZ!OS-Update, oder Element erscheint erst nach dem Laden (`wait_for` davor). Den Schritt neu aufzeichnen. |
+| Lauf klappt nur manchmal | Meist Timing. Vor den betroffenen Schritt ein `wait_for` auf das Element setzen, mit `./run.sh -s` Screenshots ansehen. Als Absicherung `./run.sh -r 2 <profil>` (siehe „Wiederholung bei Fehlern“). |
 
 ## Abhängigkeiten aktuell halten
 

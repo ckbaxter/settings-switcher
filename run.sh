@@ -14,6 +14,8 @@ Aufruf: $(basename "$0") [Optionen] <profil>
   -l, --list         vorhandene Profile anzeigen
   -b, --build        Runner-Image neu bauen (sonst nur bei fehlendem Image oder geänderten Quellen)
   -s, --screenshots  Screenshot nach jedem Schritt (sonst nur bei Fehlern)
+  -r, --retries <n>  bei Exit 1 den ganzen Lauf bis zu n-mal wiederholen (0-5, Standard 0;
+                     oder SWITCHER_RETRIES in der Shell). Pause: SWITCHER_RETRY_DELAY_S (Standard 15)
   -h, --help         diese Hilfe
 
 Exit-Codes: 0 = erfolgreich, 1 = Lauf fehlgeschlagen, 2 = Aufruf-/Konfigurationsfehler
@@ -27,6 +29,7 @@ die() {
 
 build=0
 screenshots=0
+retries="${SWITCHER_RETRIES:-0}"
 profile=""
 
 while (($#)); do
@@ -39,6 +42,11 @@ while (($#)); do
       ;;
     -b | --build) build=1 ;;
     -s | --screenshots) screenshots=1 ;;
+    -r | --retries)
+      (($# >= 2)) || die "$1 braucht eine Zahl."
+      retries="$2"
+      shift
+      ;;
     -*) usage >&2; die "Unbekannte Option: $1" ;;
     *)
       [[ -z "$profile" ]] || die "Nur ein Profil pro Aufruf."
@@ -50,6 +58,11 @@ done
 
 [[ -n "$profile" ]] || { usage >&2; exit 2; }
 [[ "$profile" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]] || die "Ungültiger Profilname: $profile"
+
+retry_delay="${SWITCHER_RETRY_DELAY_S:-15}"
+[[ "$retries" =~ ^[0-5]$ ]] || die "Wiederholungen (-r / SWITCHER_RETRIES) müssen eine Zahl von 0 bis 5 sein."
+[[ "$retry_delay" =~ ^[0-9]{1,3}$ ]] && ((retry_delay <= 300)) \
+  || die "SWITCHER_RETRY_DELAY_S muss eine Zahl von 0 bis 300 sein."
 [[ -f "$DIR/profiles/$profile.json" ]] || die "Profil nicht gefunden: profiles/$profile.json"
 [[ -f "$ENV_FILE" ]] || die "$ENV_FILE fehlt (cp runner.env.example runner.env und ausfüllen)."
 
@@ -93,22 +106,43 @@ extra=()
 
 mkdir -p "$DIR/artifacts"
 
-set +e
-docker run --rm --init \
-  --name "ss-run-${profile}-$$" \
-  --user "$(id -u):$(id -g)" \
-  --read-only --tmpfs /tmp:rw,size=256m \
-  --cap-drop ALL --security-opt no-new-privileges \
-  --pids-limit 512 --memory 1g --shm-size 256m \
-  --env-file "$ENV_FILE" \
-  -v "$DIR/profiles:/profiles:ro" \
-  -v "$DIR/artifacts:/artifacts" \
-  ${extra[@]+"${extra[@]}"} \
-  "$IMAGE" "$profile"
-rc=$?
-set -e
+run_once() {
+  docker run --rm --init \
+    --name "ss-run-${profile}-$$" \
+    --user "$(id -u):$(id -g)" \
+    --read-only --tmpfs /tmp:rw,size=256m \
+    --cap-drop ALL --security-opt no-new-privileges \
+    --pids-limit 512 --memory 1g --shm-size 256m \
+    --env-file "$ENV_FILE" \
+    -v "$DIR/profiles:/profiles:ro" \
+    -v "$DIR/artifacts:/artifacts" \
+    ${extra[@]+"${extra[@]}"} \
+    "$IMAGE" "$profile"
+}
 
-if ((rc >= 125)); then
-  echo "FEHLER: Docker konnte den Container nicht starten oder wurde abgebrochen (Exit $rc)." >&2
+# Jeder Versuch ist ein kompletter Lauf in einem frischen Container (neuer Browser, neuer Login).
+# Wiederholt wird nur bei Exit 1 (Schritt oder Prüfung fehlgeschlagen). Exit 2 (Konfiguration) und
+# Docker-Fehler (>= 125) sind keine Zufallsfehler, danach wird nicht erneut gestartet. Der Lock bleibt
+# über alle Versuche gehalten.
+attempts=$((retries + 1))
+attempt=1
+while true; do
+  ((attempts == 1)) || echo "=== Versuch $attempt von $attempts ==="
+  set +e
+  run_once
+  rc=$?
+  set -e
+
+  if ((rc >= 125)); then
+    echo "FEHLER: Docker konnte den Container nicht starten oder wurde abgebrochen (Exit $rc)." >&2
+  fi
+  ((rc == 1 && attempt < attempts)) || break
+  echo "Versuch $attempt fehlgeschlagen, neuer Versuch in ${retry_delay}s ..." >&2
+  sleep "$retry_delay"
+  attempt=$((attempt + 1))
+done
+
+if ((rc == 1 && attempts > 1)); then
+  echo "FEHLER: Lauf nach $attempts Versuchen fehlgeschlagen." >&2
 fi
 exit "$rc"

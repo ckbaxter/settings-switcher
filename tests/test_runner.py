@@ -218,3 +218,18 @@ def test_selectors_from_codegen_style_engines(server, tmp_path):
     ]
     write_profile(tmp_path, make_profile(server, steps))
     assert runner.main(["testlauf"], env_for(tmp_path)) == 0
+
+
+def test_hinweis_wenn_profil_keine_pruefung_hat(tmp_path, monkeypatch, capsys):
+    steps = [{"op": "goto", "value": "/"}, {"op": "click", "selector": "#apply"}]
+    write_profile(tmp_path, make_profile("http://127.0.0.1", steps))
+    monkeypatch.setattr(runner, "run_profile", lambda *a, **k: runner.EXIT_OK)
+    assert runner.main(["testlauf"], env_for(tmp_path)) == runner.EXIT_OK
+    assert "keine expect_*-Prüfung" in capsys.readouterr().out
+
+
+def test_kein_hinweis_wenn_profil_eine_pruefung_hat(tmp_path, monkeypatch, capsys):
+    write_profile(tmp_path, make_profile("http://127.0.0.1", GOOD_STEPS))
+    monkeypatch.setattr(runner, "run_profile", lambda *a, **k: runner.EXIT_OK)
+    assert runner.main(["testlauf"], env_for(tmp_path)) == runner.EXIT_OK
+    assert "keine expect_*-Prüfung" not in capsys.readouterr().out

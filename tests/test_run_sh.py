@@ -25,6 +25,10 @@ case "$1" in
     ;;
   run)
     echo run >>"$state/calls"
+    # FAKE_RUN_CODES="1 1 0": Exit-Codes der aufeinanderfolgenden Läufe (danach 0)
+    n=$(grep -c '^run$' "$state/calls")
+    read -r -a codes <<<"${FAKE_RUN_CODES:-}"
+    exit "${codes[$((n - 1))]:-0}"
     ;;
 esac
 """
@@ -52,18 +56,27 @@ def repo(tmp_path):
     return work, state, bin_dir
 
 
-def run_sh(repo, *args, build_fails=False):
+def run_sh(repo, *args, build_fails=False, run_codes=None, **extra_env):
     work, state, bin_dir = repo
     env = {
         **os.environ,
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "FAKE_DOCKER_STATE": str(state),
+        "SWITCHER_RETRY_DELAY_S": "0",
+        **extra_env,
     }
     if build_fails:
         env["FAKE_BUILD_FAIL"] = "1"
+    if run_codes:
+        env["FAKE_RUN_CODES"] = " ".join(str(c) for c in run_codes)
     return subprocess.run(
         [str(work / "run.sh"), *args, "demo"], env=env, capture_output=True, text=True, timeout=60
     )
+
+
+def runs(repo):
+    calls = repo[1] / "calls"
+    return calls.read_text().split().count("run") if calls.exists() else 0
 
 
 def builds(repo):
@@ -120,3 +133,63 @@ def test_fehlgeschlagener_build_ist_exit_2_und_startet_nichts(repo):
     assert "Image-Build fehlgeschlagen" in result.stderr
     calls = repo[1] / "calls"
     assert "run" not in calls.read_text().split()
+
+
+# ---------- Wiederholung bei Exit 1 ----------
+
+
+def test_ohne_retry_wird_nicht_wiederholt(repo):
+    result = run_sh(repo, run_codes=[1, 0])
+    assert result.returncode == 1
+    assert runs(repo) == 1
+
+
+def test_retry_wiederholt_ganzen_lauf_bis_zum_erfolg(repo):
+    result = run_sh(repo, "-r", "2", run_codes=[1, 1, 0])
+    assert result.returncode == 0
+    assert runs(repo) == 3
+    assert "Versuch 3 von 3" in result.stdout
+
+
+def test_retry_gibt_nach_letztem_versuch_exit_1(repo):
+    result = run_sh(repo, "--retries", "2", run_codes=[1, 1, 1])
+    assert result.returncode == 1
+    assert runs(repo) == 3
+    assert "nach 3 Versuchen fehlgeschlagen" in result.stderr
+
+
+def test_retry_bei_erfolg_startet_nur_einmal(repo):
+    assert run_sh(repo, "-r", "3", run_codes=[0]).returncode == 0
+    assert runs(repo) == 1
+
+
+def test_konfigurationsfehler_exit_2_wird_nie_wiederholt(repo):
+    result = run_sh(repo, "-r", "3", run_codes=[2, 0])
+    assert result.returncode == 2
+    assert runs(repo) == 1
+
+
+def test_docker_fehler_wird_nicht_wiederholt(repo):
+    result = run_sh(repo, "-r", "3", run_codes=[125, 0])
+    assert result.returncode == 125
+    assert runs(repo) == 1
+    assert "Docker konnte den Container nicht starten" in result.stderr
+
+
+def test_retries_aus_umgebung(repo):
+    result = run_sh(repo, run_codes=[1, 0], SWITCHER_RETRIES="1")
+    assert result.returncode == 0
+    assert runs(repo) == 2
+
+
+@pytest.mark.parametrize("wert", ["6", "-1", "x", ""])
+def test_ungueltige_retries_sind_exit_2(repo, wert):
+    result = run_sh(repo, "-r", wert)
+    assert result.returncode == 2
+    assert runs(repo) == 0
+
+
+def test_ungueltige_pause_ist_exit_2(repo):
+    result = run_sh(repo, "-r", "1", SWITCHER_RETRY_DELAY_S="301")
+    assert result.returncode == 2
+    assert runs(repo) == 0

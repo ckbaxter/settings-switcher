@@ -232,6 +232,8 @@ def main(argv=None, env=None):
     signal.signal(signal.SIGALRM, _watchdog)
     signal.alarm(max_runtime)
     log(f"Starte Profil {name}")
+    if not any(step["op"].startswith("expect_") for step in profile["steps"]):
+        log("Hinweis: Das Profil enthält keine expect_*-Prüfung, ein erfolgreicher Lauf beweist keine Wirkung.")
     return run_profile(profile, env, artifacts_dir)
 
 
