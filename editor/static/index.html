@@ -88,8 +88,8 @@
                    placeholder="Text für das ausgewählte Feld">
             <select id="rec-as" aria-label="Speichern als">
               <option value="auto">Speichern: automatisch</option>
-              <option value="user">als ${SS_USER}</option>
-              <option value="password">als ${SS_PASSWORD}</option>
+              <option value="user">als ${SWITCHER_USER}</option>
+              <option value="password">als ${SWITCHER_PASSWORD}</option>
               <option value="literal">Text wörtlich</option>
             </select>
             <label><input id="rec-show" type="checkbox"> anzeigen</label>
@@ -105,7 +105,7 @@
       <p class="hint">
         Schritte entstehen im Aufnahme-Modus (falls aktiv) oder per Hand (Selektoren z. B. mit
         <code>playwright codegen</code>, siehe README). Passwörter nie eintragen, nur
-        <code>${SS_PASSWORD}</code> bei „fill“.
+        <code>${SWITCHER_PASSWORD}</code> bei „fill“.
       </p>
       <ol id="steps" class="steps"></ol>
       <button id="add-step" type="button">+ Schritt</button>

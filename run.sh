@@ -4,8 +4,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="${SS_IMAGE:-settings-switcher-runner}"
-ENV_FILE="${SS_ENV_FILE:-$DIR/runner.env}"
+IMAGE="${SWITCHER_IMAGE:-settings-switcher-runner}"
+ENV_FILE="${SWITCHER_ENV_FILE:-$DIR/runner.env}"
 
 usage() {
   cat <<EOF
@@ -88,8 +88,8 @@ if ((build)) || [[ "$image_hash" != "$src_hash" ]]; then
 fi
 
 extra=()
-[[ -z "${SS_DOCKER_NETWORK:-}" ]] || extra+=(--network "$SS_DOCKER_NETWORK")
-((screenshots)) && extra+=(-e SS_SCREENSHOTS=all)
+[[ -z "${SWITCHER_DOCKER_NETWORK:-}" ]] || extra+=(--network "$SWITCHER_DOCKER_NETWORK")
+((screenshots)) && extra+=(-e SWITCHER_SCREENSHOTS=all)
 
 mkdir -p "$DIR/artifacts"
 

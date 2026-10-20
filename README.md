@@ -27,9 +27,9 @@ docker compose --profile record down                       # und wieder beenden
 docker compose --profile editor up -d --build              # Alternative: Editor ohne Browser (nur Profile bearbeiten)
 ```
 
-In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SS_ALLOWED_HOSTS` (Fritzbox-IP) stehen.
+In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SWITCHER_ALLOWED_HOSTS` (Fritzbox-IP) stehen.
 `record` und `editor` benutzen denselben Port, starte nur einen von beiden.
-Starte `run.sh` als normaler Benutzer (UID wie `SS_UID`), nicht mit `sudo` (siehe Fehlersuche).
+Starte `run.sh` als normaler Benutzer (UID wie `SWITCHER_UID`), nicht mit `sudo` (siehe Fehlersuche).
 
 `run.sh` baut das Runner-Image selbst, wenn es fehlt oder sich `runner/Dockerfile`,
 `runner/requirements.txt`, `runner/runner.py` oder `shared/` seit dem letzten Bau geändert haben
@@ -41,7 +41,7 @@ Editor und Recorder sind eigene Images und werden mit `docker compose … up -d 
 
 ### Zwei Host-Listen, nicht verwechseln
 
-| | `EDITOR_ALLOWED_HOSTS` | `SS_ALLOWED_HOSTS` |
+| | `EDITOR_ALLOWED_HOSTS` | `SWITCHER_ALLOWED_HOSTS` |
 | --- | --- | --- |
 | Datei | `.env` | `runner.env` und `.env` (gleicher Wert) |
 | Wer prüft | der Editor | der Browser im Runner und im Recorder |
@@ -54,7 +54,7 @@ Editor und Recorder sind eigene Images und werden mit `docker compose … up -d 
 - `EDITOR_ALLOWED_HOSTS` ist **nicht** die Adresse deines Endgeräts, sondern die des Servers, die du in den
   Browser eintippst. Wer den Editor erreichen darf, steuern `EDITOR_BIND`, `EDITOR_ALLOWED_IPS`, die Firewall
   und das Token.
-- `SS_ALLOWED_HOSTS` kommt nur aus der Umgebung, nie aus dem Profil. Nimm die IP statt `fritz.box`, und
+- `SWITCHER_ALLOWED_HOSTS` kommt nur aus der Umgebung, nie aus dem Profil. Nimm die IP statt `fritz.box`, und
   `base_url` im Profil muss dazu passen.
 
 ### Zugriff auf bestimmte IPs begrenzen (`EDITOR_ALLOWED_IPS`)
@@ -81,27 +81,27 @@ Der Runner hat Zugriff auf die Fritzbox, deshalb gilt:
 
 | Maßnahme | Wirkung |
 | --- | --- |
-| Erlaubte Hosts nur aus `SS_ALLOWED_HOSTS` (`runner.env`), nie aus dem Profil | Wer Profile ändern kann, kann das Passwort nicht an einen fremden Host schicken |
+| Erlaubte Hosts nur aus `SWITCHER_ALLOWED_HOSTS` (`runner.env`), nie aus dem Profil | Wer Profile ändern kann, kann das Passwort nicht an einen fremden Host schicken |
 | Browser blockiert jede Anfrage an andere Hosts (auch Redirects, Bilder, Skripte) | Nur die Fritzbox ist erreichbar |
-| Zugangsdaten nur als `${SS_USER}` / `${SS_PASSWORD}` und nur bei `fill` | Passwörter stehen in keinem Profil und im Log nur als „n Zeichen“ |
+| Zugangsdaten nur als `${SWITCHER_USER}` / `${SWITCHER_PASSWORD}` und nur bei `fill` | Passwörter stehen in keinem Profil und im Log nur als „n Zeichen“ |
 | Keine Operation für freies JavaScript | Profile können nur die festen Schritte ausführen |
 | Container: `--rm`, `--read-only`, `--cap-drop ALL`, `no-new-privileges`, Speicher-/Prozesslimit, kein Port nach außen, läuft als dein Benutzer | Kleine Angriffsfläche, nichts bleibt zurück |
-| Harte Laufzeitgrenze (`SS_MAX_RUNTIME_S`, Standard 120 s) und nur ein Lauf gleichzeitig | Hängende Läufe bleiben nicht offen |
+| Harte Laufzeitgrenze (`SWITCHER_MAX_RUNTIME_S`, Standard 120 s) und nur ein Lauf gleichzeitig | Hängende Läufe bleiben nicht offen |
 | Editor: Token-Pflicht, Host-Prüfung, optionale IP-Freigabe (`EDITOR_ALLOWED_IPS`), Rate-Limit, strenge CSP, nur lokal gebunden, **keine** Fritzbox-Zugangsdaten, startet keine Container | Selbst ein geknackter Editor kann nur Profile ändern |
-| Live-Recorder: gleiche Host-Sperre wie der Runner (`SS_ALLOWED_HOSTS`), WebSocket nur mit Token, Host- und Origin-Prüfung, nur eine Sitzung und ein Betrachter, Zeitgrenzen (180 s Leerlauf, 600 s gesamt), Popups/Dialoge/Downloads aus, Container wie der Runner gehärtet | Der aufgezeichnete Browser kann nur die Fritzbox erreichen und nur mit gültigem Token gesteuert werden |
-| Aufgezeichnete Passwörter: Passwortfelder werden immer als `${SS_PASSWORD}` gespeichert, fester Text ist dort abgelehnt; andere Felder speichern nur, was du ausdrücklich als festen Text wählst | Zugangsdaten stehen weder im Profil noch im Editor-Log |
-| Wiedergabe bis zur Stopmarke: Die Schritte werden wie ein Profil geprüft (nur feste Operationen, nur erlaubte Hosts), `${SS_…}`-Werte und `TODO`-Schritte spielt der Recorder nie selbst ab | Auch beim Abspielen kommen keine Zugangsdaten in den Recorder, Logins tippst du selbst ein |
+| Live-Recorder: gleiche Host-Sperre wie der Runner (`SWITCHER_ALLOWED_HOSTS`), WebSocket nur mit Token, Host- und Origin-Prüfung, nur eine Sitzung und ein Betrachter, Zeitgrenzen (180 s Leerlauf, 600 s gesamt), Popups/Dialoge/Downloads aus, Container wie der Runner gehärtet | Der aufgezeichnete Browser kann nur die Fritzbox erreichen und nur mit gültigem Token gesteuert werden |
+| Aufgezeichnete Passwörter: Passwortfelder werden immer als `${SWITCHER_PASSWORD}` gespeichert, fester Text ist dort abgelehnt; andere Felder speichern nur, was du ausdrücklich als festen Text wählst | Zugangsdaten stehen weder im Profil noch im Editor-Log |
+| Wiedergabe bis zur Stopmarke: Die Schritte werden wie ein Profil geprüft (nur feste Operationen, nur erlaubte Hosts), `${SWITCHER_…}`-Werte und `TODO`-Schritte spielt der Recorder nie selbst ab | Auch beim Abspielen kommen keine Zugangsdaten in den Recorder, Logins tippst du selbst ein |
 
 Außerdem sinnvoll:
 
 - Eigenen Fritzbox-Benutzer mit minimalen Rechten anlegen, ohne Zugriff aus dem Internet.
 - Auf dem Docker-Host zusätzlich per Firewall (`DOCKER-USER`-Kette oder eigenes Docker-Netz über
-  `SS_DOCKER_NETWORK`) den Ausgang des Runners auf die Fritzbox-IP beschränken. Die
+  `SWITCHER_DOCKER_NETWORK`) den Ausgang des Runners auf die Fritzbox-IP beschränken. Die
   Hostprüfung im Browser ersetzt das nicht, sie ergänzt es.
 - Screenshots (`artifacts/`) können sensible Seiteninhalte zeigen. Sie bleiben lokal, nicht einchecken.
 - Chromium läuft im Container mit `--no-sandbox`, weil der Container selbst die Isolation liefert
   und der Runner nur erlaubte Hosts lädt. Wer die Chromium-Sandbox nutzen will, setzt
-  `SS_CHROMIUM_NO_SANDBOX=0` und startet den Container mit einem passenden Seccomp-Profil
+  `SWITCHER_CHROMIUM_NO_SANDBOX=0` und startet den Container mit einem passenden Seccomp-Profil
   (siehe Playwright-Docker-Dokumentation).
 - Profile enthalten keine Geheimnisse und dürfen ins (private) Repo.
 - **Restrisiko des Live-Recorders:** Der Recorder-Container erreicht die Fritzbox und wird per
@@ -121,7 +121,7 @@ Außerdem sinnvoll:
   "timeout_ms": 15000,
   "steps": [
     { "op": "goto", "value": "/" },
-    { "op": "fill", "selector": "…", "value": "${SS_PASSWORD}" },
+    { "op": "fill", "selector": "…", "value": "${SWITCHER_PASSWORD}" },
     { "op": "click", "selector": "…" },
     { "op": "expect_checked", "selector": "…", "comment": "Erfolgsprüfung" }
   ]
@@ -132,7 +132,7 @@ Außerdem sinnvoll:
 | --- | --- | --- |
 | `goto` | `value` | Pfad (`/…`) oder volle URL, nur erlaubte Hosts |
 | `click` / `click_text` | `selector` / `value` | Element bzw. Element mit exakt diesem Text anklicken |
-| `fill` | `selector`, `value` | Text eintragen, `${SS_…}` erlaubt |
+| `fill` | `selector`, `value` | Text eintragen, `${SWITCHER_…}` erlaubt |
 | `check` / `uncheck` | `selector` | Checkbox setzen |
 | `select_option` / `press` | `selector`, `value` | Auswahlliste / Taste |
 | `wait_for` / `wait_ms` | `selector` / `value` | Warten auf Element / feste Zeit (ms, max. 30000) |
@@ -158,14 +158,14 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 ## Ablauf aufzeichnen (Live-Browser im Editor)
 
 1. `docker compose --profile record up -d --build`, dann `http://127.0.0.1:8080` öffnen und mit dem Token verbinden.
-2. Profil anlegen oder öffnen, `base_url` eintragen (muss zu `SS_ALLOWED_HOSTS` passen) und **Aufnahme starten**.
+2. Profil anlegen oder öffnen, `base_url` eintragen (muss zu `SWITCHER_ALLOWED_HOSTS` passen) und **Aufnahme starten**.
 3. Im Live-Bild klicken wie in einem normalen Browser. Jede Aktion erscheint als Schritt:
 
 | Aktion im Live-Bild | Aufgezeichneter Schritt |
 | --- | --- |
 | Seite öffnen | `goto` |
 | Klick auf Schaltfläche, Link, Element | `click` mit möglichst stabilem Selektor |
-| Klick auf Textfeld, dann Text im Feld darunter eingeben und senden | `fill`. Passwortfelder immer mit `${SS_PASSWORD}`. Andere Felder wahlweise `${SS_USER}`, `TODO` (selbst ausfüllen) oder fester Text |
+| Klick auf Textfeld, dann Text im Feld darunter eingeben und senden | `fill`. Passwortfelder immer mit `${SWITCHER_PASSWORD}`. Andere Felder wahlweise `${SWITCHER_USER}`, `TODO` (selbst ausfüllen) oder fester Text |
 | Klick auf Checkbox | `check` / `uncheck` je nach Ergebnis |
 | Klick auf Auswahlliste | Liste erscheint im Editor, die Wahl wird `select_option` |
 | Enter, Tab, Escape (Tastenknöpfe) | `press` |
@@ -190,7 +190,7 @@ Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem FRITZ!OS-Update), m
 
 Beim Abspielen hält der Recorder an, wenn er einen Schritt nicht selbst ausführen darf oder nicht kann:
 
-- **Login und TODO:** Ein `fill` mit `${SS_USER}` / `${SS_PASSWORD}` spielt der Recorder nie selbst ab, er kennt
+- **Login und TODO:** Ein `fill` mit `${SWITCHER_USER}` / `${SWITCHER_PASSWORD}` spielt der Recorder nie selbst ab, er kennt
   keine Zugangsdaten. Dasselbe gilt für Schritte mit `TODO`. Du erledigst den Schritt im Live-Bild (bei einem
   Textfeld ist es schon markiert, getippt wird im Eingabefeld unter dem Bild) und klickst **Erledigt, weiter**.
   Das wird nicht aufgezeichnet. Ein Login braucht also bei jeder Aufnahme mit Marke deine Eingabe.
@@ -221,7 +221,7 @@ Wichtig:
 | Symptom | Ursache und Abhilfe |
 | --- | --- |
 | Editor: „Host nicht erlaubt.“ | Der Name aus der Browser-Adresszeile (ohne Port) fehlt in `EDITOR_ALLOWED_HOSTS`. Eintrag in `.env` ergänzen, Zeile nicht auskommentiert lassen, mit `docker compose … up -d` neu anlegen (ein Neustart liest `.env` nicht neu). |
-| Speichern: „Keine Schreibrechte …“ / Fehler 500 | Der Container-Benutzer darf nicht in `./profiles` schreiben. `SS_UID`/`SS_GID` in `.env` auf `id -u` / `id -g` des Besitzers setzen (oder `chown`), Dienst neu anlegen. |
+| Speichern: „Keine Schreibrechte …“ / Fehler 500 | Der Container-Benutzer darf nicht in `./profiles` schreiben. `SWITCHER_UID`/`SWITCHER_GID` in `.env` auf `id -u` / `id -g` des Besitzers setzen (oder `chown`), Dienst neu anlegen. |
 | `run.sh`: „Profil … nicht lesbar: Permission denied“ | `./profiles` braucht `755`, die Profile `644` (neuere Editor-Versionen speichern so). Der Runner läuft mit `--cap-drop ALL`, daher kann auch root fremde Dateien nur mit passenden Rechten lesen. `run.sh` besser nicht mit `sudo` starten. Nach einem Update `docker compose --profile record up -d --build`. |
 | Lauf „ok“, aber nichts geändert | Meist falsche Richtung (`uncheck` statt `check` oder der Zustand war schon so), zu früher Logout oder fehlende Gegenprobe. `./run.sh -s` zeigt Screenshots pro Schritt. |
 | Schritt bricht ab | Selektor nicht (mehr) eindeutig, z. B. nach FRITZ!OS-Update, oder Element erscheint erst nach dem Laden (`wait_for` davor). Den Schritt neu aufzeichnen. |

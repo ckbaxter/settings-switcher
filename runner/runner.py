@@ -5,9 +5,9 @@ Exit-Codes: 0 = alles erfolgreich, 1 = Schritt oder Prüfung fehlgeschlagen,
             2 = Konfigurations-/Profilfehler (es wurde kein Browser gestartet).
 
 Sicherheitsregeln (bewusst nicht über das Profil änderbar):
-- Erlaubte Hosts kommen aus SS_ALLOWED_HOSTS (Umgebung), nicht aus dem Profil.
+- Erlaubte Hosts kommen aus SWITCHER_ALLOWED_HOSTS (Umgebung), nicht aus dem Profil.
 - Jede Browser-Anfrage zu einem anderen Host wird blockiert.
-- Zugangsdaten kommen aus SS_*-Variablen und nur in fill-Schritte.
+- Zugangsdaten kommen aus SWITCHER_*-Variablen und nur in fill-Schritte.
 """
 
 import json
@@ -60,11 +60,11 @@ def preflight(profile, env):
     errors.extend(find_placeholders(profile) if not errors else [])
     allowed = parse_allowed_hosts(env)
     if not allowed:
-        errors.append("SS_ALLOWED_HOSTS ist leer (z. B. SS_ALLOWED_HOSTS=192.168.178.1).")
+        errors.append("SWITCHER_ALLOWED_HOSTS ist leer (z. B. SWITCHER_ALLOWED_HOSTS=192.168.178.1).")
     if not errors:
         base_host = url_host(profile["base_url"])
         if base_host not in allowed:
-            errors.append(f"base_url-Host {base_host!r} steht nicht in SS_ALLOWED_HOSTS.")
+            errors.append(f"base_url-Host {base_host!r} steht nicht in SWITCHER_ALLOWED_HOSTS.")
         for i, step in enumerate(profile["steps"], 1):
             value = step.get("value")
             if uses_variable(value):
@@ -139,19 +139,19 @@ def run_profile(profile, env, artifacts_dir):
     timeout = profile.get("timeout_ms", DEFAULT_TIMEOUT_MS)
     steps = profile["steps"]
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    all_shots = env.get("SS_SCREENSHOTS", "") == "all"
+    all_shots = env.get("SWITCHER_SCREENSHOTS", "") == "all"
     artifacts_dir = Path(artifacts_dir)
     blocked = set()
 
     launch_args = ["--disable-dev-shm-usage"]
-    if env.get("SS_CHROMIUM_NO_SANDBOX", "1") != "0":
+    if env.get("SWITCHER_CHROMIUM_NO_SANDBOX", "1") != "0":
         launch_args.append("--no-sandbox")
 
     started = time.monotonic()
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=launch_args)
         context = browser.new_context(
-            ignore_https_errors=env.get("SS_IGNORE_HTTPS_ERRORS", "0") == "1",
+            ignore_https_errors=env.get("SWITCHER_IGNORE_HTTPS_ERRORS", "0") == "1",
             service_workers="block",
             accept_downloads=False,
             viewport={"width": 1280, "height": 900},
@@ -207,8 +207,8 @@ def main(argv=None, env=None):
         return EXIT_CONFIG
     name = argv[0]
 
-    profiles_dir = env.get("SS_PROFILES_DIR", "/profiles")
-    artifacts_dir = env.get("SS_ARTIFACTS_DIR", "/artifacts")
+    profiles_dir = env.get("SWITCHER_PROFILES_DIR", "/profiles")
+    artifacts_dir = env.get("SWITCHER_ARTIFACTS_DIR", "/artifacts")
     try:
         profile = load_profile(name, profiles_dir)
     except FileNotFoundError:
@@ -228,7 +228,7 @@ def main(argv=None, env=None):
             log(f"  - {err}")
         return EXIT_CONFIG
 
-    max_runtime = int(env.get("SS_MAX_RUNTIME_S", "120"))
+    max_runtime = int(env.get("SWITCHER_MAX_RUNTIME_S", "120"))
     signal.signal(signal.SIGALRM, _watchdog)
     signal.alarm(max_runtime)
     log(f"Starte Profil {name}")

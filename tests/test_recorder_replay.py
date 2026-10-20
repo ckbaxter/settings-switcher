@@ -15,8 +15,8 @@ H = {"X-Token": TOKEN}
 
 LOGIN = [
     {"op": "goto", "value": "/"},
-    {"op": "fill", "selector": "#user", "value": "${SS_USER}"},
-    {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SS_PASSWORD}"},
+    {"op": "fill", "selector": "#user", "value": "${SWITCHER_USER}"},
+    {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SWITCHER_PASSWORD}"},
     {"op": "click", "selector": "#login"},
 ]
 
@@ -78,8 +78,8 @@ def drain_all(s):
 
 
 def test_block_reason_for_credentials_and_todo():
-    assert "Zugangsdaten" in replay_block_reason({"op": "fill", "selector": "#a", "value": "${SS_PASSWORD}"})
-    assert "Zugangsdaten" in replay_block_reason({"op": "fill", "selector": "#a", "value": "x${SS_USER}"})
+    assert "Zugangsdaten" in replay_block_reason({"op": "fill", "selector": "#a", "value": "${SWITCHER_PASSWORD}"})
+    assert "Zugangsdaten" in replay_block_reason({"op": "fill", "selector": "#a", "value": "x${SWITCHER_USER}"})
     assert "TODO" in replay_block_reason({"op": "fill", "selector": "#a", "value": "TODO: Wert setzen"})
     assert "TODO" in replay_block_reason({"op": "click", "selector": "todo selector"})
     assert replay_block_reason({"op": "fill", "selector": "#a", "value": "fester Text"}) is None
@@ -97,10 +97,10 @@ def test_label_never_contains_the_fill_value():
         [],
         "nicht-liste",
         [{"op": "eval", "value": "alert(1)"}],  # kein freies JavaScript
-        [{"op": "click", "selector": "#a", "value": "${SS_PASSWORD}"}],  # Variablen nur bei fill
+        [{"op": "click", "selector": "#a", "value": "${SWITCHER_PASSWORD}"}],  # Variablen nur bei fill
         [{"op": "goto", "value": "http://evil.example/"}],  # anderer Host
         [{"op": "goto", "value": "//evil.example"}],
-        [{"op": "fill", "selector": "#a", "value": "${HOME}"}],  # nur SS_...
+        [{"op": "fill", "selector": "#a", "value": "${HOME}"}],  # nur SWITCHER_...
         ["kein-objekt"],
         [{"op": "click"}],  # Pflichtfeld fehlt
     ],

@@ -12,7 +12,7 @@
     {
       "op": "fill",
       "selector": "TODO: Selektor Passwortfeld per codegen aufzeichnen",
-      "value": "${SS_PASSWORD}"
+      "value": "${SWITCHER_PASSWORD}"
     },
     {
       "op": "click",

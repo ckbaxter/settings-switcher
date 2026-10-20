@@ -131,7 +131,7 @@ def test_save_without_write_permission_gives_clear_error(client, monkeypatch):
     monkeypatch.setattr("editor.app.tempfile.mkstemp", denied)
     res = client.put("/api/profiles/demo", headers=H, json=PROFILE)
     assert res.status_code == 500
-    assert "SS_UID" in res.json()["detail"] and "Schreibrechte" in res.json()["detail"]
+    assert "SWITCHER_UID" in res.json()["detail"] and "Schreibrechte" in res.json()["detail"]
 
 
 def test_save_fails_cleanly_when_replace_fails(client, monkeypatch, tmp_path):

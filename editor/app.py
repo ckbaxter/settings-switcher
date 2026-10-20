@@ -87,7 +87,7 @@ def _write_error(exc):
     log.error("Profil konnte nicht geschrieben werden: %s", exc)
     if isinstance(exc, PermissionError):
         return (
-            "Keine Schreibrechte auf das Profilverzeichnis. SS_UID/SS_GID in .env müssen zum Besitzer von "
+            "Keine Schreibrechte auf das Profilverzeichnis. SWITCHER_UID/SWITCHER_GID in .env müssen zum Besitzer von "
             "./profiles passen (id -u, id -g; ggf. chown), danach docker compose neu starten."
         )
     return f"Profil konnte nicht gespeichert werden ({exc.__class__.__name__}). Details im Container-Log."
@@ -356,13 +356,13 @@ def create_app_from_env():
     if os.environ.get("RECORDER_ENABLED") == "1":
         recorder = Recorder(
             parse_allowed_hosts(os.environ),
-            ignore_https_errors=os.environ.get("SS_IGNORE_HTTPS_ERRORS", "0") == "1",
-            no_sandbox=os.environ.get("SS_CHROMIUM_NO_SANDBOX", "1") != "0",
+            ignore_https_errors=os.environ.get("SWITCHER_IGNORE_HTTPS_ERRORS", "0") == "1",
+            no_sandbox=os.environ.get("SWITCHER_CHROMIUM_NO_SANDBOX", "1") != "0",
             max_seconds=int(os.environ.get("REC_MAX_SECONDS", "600")),
             idle_seconds=int(os.environ.get("REC_IDLE_SECONDS", "180")),
         )
     return create_app(
-        profiles_dir=os.environ.get("SS_PROFILES_DIR", "/profiles"),
+        profiles_dir=os.environ.get("SWITCHER_PROFILES_DIR", "/profiles"),
         token=os.environ.get("EDITOR_TOKEN", ""),
         allowed_hosts=hosts,
         recorder=recorder,

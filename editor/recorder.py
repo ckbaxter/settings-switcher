@@ -4,16 +4,16 @@ Klicks und Eingaben aus der Oberfläche werden an den echten Browser weitergegeb
 gleichzeitig als Profil-Schritte gemeldet.
 
 Sicherheit:
-- Nur Hosts aus SS_ALLOWED_HOSTS sind erreichbar (alles andere wird blockiert).
+- Nur Hosts aus SWITCHER_ALLOWED_HOSTS sind erreichbar (alles andere wird blockiert).
 - Der Recorder kennt keine Zugangsdaten. Passwörter werden nie gespeichert: bei
-  Passwortfeldern steht im Schritt ${SS_PASSWORD}, sonst ein TODO-Platzhalter.
+  Passwortfeldern steht im Schritt ${SWITCHER_PASSWORD}, sonst ein TODO-Platzhalter.
 - Eine Sitzung gleichzeitig, mit Idle- und Gesamt-Zeitlimit. Popups werden geschlossen,
   Downloads und Service-Worker sind aus.
 
 Wiedergabe bis zur Stopmarke (optional beim Start):
 - Die Schritte bis zur Marke werden vor dem Aufzeichnen im Live-Browser abgespielt,
   mit denselben Host-Sperren wie sonst. Sie werden dabei nicht erneut aufgezeichnet.
-- Der Recorder kennt keine Zugangsdaten. Ein fill mit ${SS_...} (und alles mit TODO) spielt er
+- Der Recorder kennt keine Zugangsdaten. Ein fill mit ${SWITCHER_...} (und alles mit TODO) spielt er
   deshalb nie selbst ab, sondern hält an: Du erledigst den Schritt im Live-Bild, das wird
   nicht aufgezeichnet, danach geht es weiter. Genauso bei einem Schritt, der fehlschlägt.
 """
@@ -529,11 +529,11 @@ class Session:
         selector = await pick_selector(self.page, info)
         await self.page.locator(selector).fill(text)
         if mode == "auto":
-            value = "${SS_PASSWORD}" if info["isPassword"] else PLACEHOLDER_VALUE
+            value = "${SWITCHER_PASSWORD}" if info["isPassword"] else PLACEHOLDER_VALUE
         elif mode == "user":
-            value = "${SS_USER}"
+            value = "${SWITCHER_USER}"
         elif mode == "password":
-            value = "${SS_PASSWORD}"
+            value = "${SWITCHER_PASSWORD}"
         else:
             value = text
         self.step("fill", selector, value, comment=_label_of(info))
@@ -571,7 +571,7 @@ class Recorder:
     def __init__(self, allowed_hosts, *, ignore_https_errors=False, no_sandbox=True,
                  max_seconds=600, idle_seconds=180):
         if not allowed_hosts:
-            raise RuntimeError("SS_ALLOWED_HOSTS ist leer, der Recorder startet nicht.")
+            raise RuntimeError("SWITCHER_ALLOWED_HOSTS ist leer, der Recorder startet nicht.")
         self.allowed_hosts = {h.lower() for h in allowed_hosts}
         self.ignore_https_errors = ignore_https_errors
         self.no_sandbox = no_sandbox
@@ -603,7 +603,7 @@ class Recorder:
         if self.session is not None or self._starting:
             raise RecorderError("Es läuft bereits eine Aufnahme.", 409)
         if not isinstance(base_url, str) or url_host(base_url) not in self.allowed_hosts:
-            raise RecorderError("Die Basis-URL liegt nicht in SS_ALLOWED_HOSTS.", 422)
+            raise RecorderError("Die Basis-URL liegt nicht in SWITCHER_ALLOWED_HOSTS.", 422)
         if not is_plain_path(path):
             raise RecorderError("Der Startpfad muss mit / beginnen.", 422)
         replay_steps = self._check_replay(base_url, replay) if replay is not None else None

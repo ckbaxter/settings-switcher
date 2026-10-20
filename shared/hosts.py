@@ -1,13 +1,13 @@
 """Host-Prüfung, gemeinsam genutzt von Runner und Recorder.
 
-Erlaubte Hosts kommen immer aus der Umgebung (SS_ALLOWED_HOSTS), nie aus einem Profil.
+Erlaubte Hosts kommen immer aus der Umgebung (SWITCHER_ALLOWED_HOSTS), nie aus einem Profil.
 """
 
 from urllib.parse import urljoin, urlparse
 
 
 def parse_allowed_hosts(env):
-    raw = env.get("SS_ALLOWED_HOSTS", "")
+    raw = env.get("SWITCHER_ALLOWED_HOSTS", "")
     return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
 

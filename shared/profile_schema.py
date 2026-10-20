@@ -8,7 +8,7 @@ import re
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 VAR_RE = re.compile(r"\$\{([A-Za-z0-9_]+)\}")
-VAR_NAME_RE = re.compile(r"^SS_[A-Z0-9_]+$")
+VAR_NAME_RE = re.compile(r"^SWITCHER_[A-Z0-9_]+$")
 
 MAX_STEPS = 100
 MAX_STRING = 500
@@ -21,7 +21,7 @@ OPS = {
     "goto": (("value",), "Seite öffnen (Pfad wie /  oder volle URL)"),
     "click": (("selector",), "Element anklicken"),
     "click_text": (("value",), "Element mit exakt diesem Text anklicken"),
-    "fill": (("selector", "value"), "Text eintragen (${SS_...} erlaubt)"),
+    "fill": (("selector", "value"), "Text eintragen (${SWITCHER_...} erlaubt)"),
     "check": (("selector",), "Checkbox aktivieren"),
     "uncheck": (("selector",), "Checkbox deaktivieren"),
     "select_option": (("selector", "value"), "Eintrag aus Auswahlliste wählen"),
@@ -133,7 +133,7 @@ def _validate_step(i, step):
             errors.append(f"{where}: Variablen sind nur bei fill erlaubt.")
         for var in variables:
             if not VAR_NAME_RE.match(var):
-                errors.append(f"{where}: Variable {var} ist nicht erlaubt (nur SS_...).")
+                errors.append(f"{where}: Variable {var} ist nicht erlaubt (nur SWITCHER_...).")
     selector = step.get("selector")
     if isinstance(selector, str) and VAR_RE.search(selector):
         errors.append(f"{where}: Variablen im Selektor sind nicht erlaubt.")
@@ -158,7 +158,7 @@ def uses_variable(value):
 
 
 def substitute(value, env):
-    """Ersetzt ${SS_...} durch Werte aus env. Fehlende Variable -> KeyError."""
+    """Ersetzt ${SWITCHER_...} durch Werte aus env. Fehlende Variable -> KeyError."""
 
     def repl(match):
         var = match.group(1)

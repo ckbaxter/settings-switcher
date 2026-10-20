@@ -115,8 +115,8 @@ def test_record_save_and_replay_with_runner(live, server, page, tmp_path):
     assert "super-geheim" not in text and "alice" not in text
     assert [(s["op"], s.get("selector"), s.get("value")) for s in saved["steps"]] == [
         ("goto", None, "/"),
-        ("fill", "#user", "${SS_USER}"),
-        ("fill", 'input[name="pwd"]', "${SS_PASSWORD}"),
+        ("fill", "#user", "${SWITCHER_USER}"),
+        ("fill", 'input[name="pwd"]', "${SWITCHER_PASSWORD}"),
         ("click", "#login", None),
         ("check", "#enabled", None),
         ("click", 'role=button[name="Übernehmen"]', None),
@@ -127,11 +127,11 @@ def test_record_save_and_replay_with_runner(live, server, page, tmp_path):
     # Das aufgezeichnete Profil läuft im echten Runner durch
     (tmp_path / "artifacts").mkdir()
     env = {
-        "SS_PROFILES_DIR": str(profiles),
-        "SS_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
-        "SS_ALLOWED_HOSTS": "127.0.0.1",
-        "SS_USER": "alice",
-        "SS_PASSWORD": "super-geheim",
+        "SWITCHER_PROFILES_DIR": str(profiles),
+        "SWITCHER_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
+        "SWITCHER_ALLOWED_HOSTS": "127.0.0.1",
+        "SWITCHER_USER": "alice",
+        "SWITCHER_PASSWORD": "super-geheim",
     }
     # als eigener Prozess: genau so startet ihn auch der Container
     result = subprocess.run(
@@ -170,7 +170,7 @@ def test_start_outside_allowed_hosts_is_refused(live, page):
     page.click("#new-profile")
     page.fill("#f-base", "http://192.168.178.99")
     page.click("#rec-start")
-    expect(page.locator("#messages")).to_contain_text("SS_ALLOWED_HOSTS")
+    expect(page.locator("#messages")).to_contain_text("SWITCHER_ALLOWED_HOSTS")
     expect(page.locator("#rec-live")).to_be_hidden()
 
 
@@ -286,8 +286,8 @@ def step_field(page, index, field):
 
 LOGIN_STEPS = [
     {"op": "goto", "value": "/"},
-    {"op": "fill", "selector": "#user", "value": "${SS_USER}"},
-    {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SS_PASSWORD}"},
+    {"op": "fill", "selector": "#user", "value": "${SWITCHER_USER}"},
+    {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SWITCHER_PASSWORD}"},
     {"op": "click", "selector": "#login"},
 ]
 
@@ -355,7 +355,7 @@ def test_stopmarke_haelt_bei_login_schritten_an_und_zeichnet_das_tippen_nicht_au
     live_click(page, 30, 210)  # Freigabe aktivieren, nur nach dem Login (Klick wurde abgespielt) möglich
     wait_steps(page, 5)
     values = [step_field(page, i, 1) for i in range(5)]
-    assert values[1:3] == ["${SS_USER}", "${SS_PASSWORD}"]
+    assert values[1:3] == ["${SWITCHER_USER}", "${SWITCHER_PASSWORD}"]
     assert "alice" not in values and "geheim-pw-123" not in values
     assert page.locator("#steps .step").nth(4).locator("select").input_value() == "check"
 

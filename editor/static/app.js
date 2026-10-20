@@ -90,7 +90,7 @@
       const value = el("input", {
         value: step.value || "",
         disabled: !needsValue,
-        placeholder: needsValue ? (step.op === "fill" ? "Wert oder ${SS_PASSWORD}" : "Wert") : "",
+        placeholder: needsValue ? (step.op === "fill" ? "Wert oder ${SWITCHER_PASSWORD}" : "Wert") : "",
         maxLength: 500,
         "aria-label": "Wert",
       });

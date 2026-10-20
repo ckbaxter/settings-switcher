@@ -107,7 +107,7 @@ def test_login_flow_records_steps_without_secrets(server):
     events = run_session(server, scenario)
     assert steps_of(events) == [
         {"op": "fill", "selector": "#user", "value": "TODO: Wert setzen", "comment": "input: user"},
-        {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SS_PASSWORD}", "comment": "input: pwd"},
+        {"op": "fill", "selector": 'input[name="pwd"]', "value": "${SWITCHER_PASSWORD}", "comment": "input: pwd"},
         {"op": "click", "selector": "#login", "comment": "button: Anmelden"},
     ]
     dump = json.dumps(events)
@@ -127,7 +127,7 @@ def test_fill_modes(server):
 
     events = run_session(server, scenario)
     values = [st["value"] for st in steps_of(events)]
-    assert values == ["${SS_USER}", "alice", "${SS_PASSWORD}"]
+    assert values == ["${SWITCHER_USER}", "alice", "${SWITCHER_PASSWORD}"]
     assert any(e["t"] == "error" and "Klartext" in e["message"] for e in events)
 
 
@@ -286,11 +286,11 @@ def test_recorded_selectors_replay_in_runner(server, tmp_path):
         env={
             **os.environ,
             "PYTHONPATH": ".",
-            "SS_PROFILES_DIR": str(pdir),
-            "SS_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
-            "SS_ALLOWED_HOSTS": "127.0.0.1",
-            "SS_USER": "alice",
-            "SS_PASSWORD": "pw",
+            "SWITCHER_PROFILES_DIR": str(pdir),
+            "SWITCHER_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
+            "SWITCHER_ALLOWED_HOSTS": "127.0.0.1",
+            "SWITCHER_USER": "alice",
+            "SWITCHER_PASSWORD": "pw",
         },
         capture_output=True,
         text=True,

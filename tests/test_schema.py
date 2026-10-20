@@ -11,7 +11,7 @@ GOOD = {
     "timeout_ms": 15000,
     "steps": [
         {"op": "goto", "value": "/"},
-        {"op": "fill", "selector": "#pw", "value": "${SS_PASSWORD}"},
+        {"op": "fill", "selector": "#pw", "value": "${SWITCHER_PASSWORD}"},
         {"op": "click", "selector": "#login"},
         {"op": "wait_ms", "value": "500"},
         {"op": "expect_checked", "selector": "#box", "comment": "Prüfung"},
@@ -55,9 +55,9 @@ def test_unused_field_rejected():
 
 
 def test_variables_only_in_fill_value():
-    bad_goto = variant(steps=[{"op": "goto", "value": "/?p=${SS_PASSWORD}"}])
+    bad_goto = variant(steps=[{"op": "goto", "value": "/?p=${SWITCHER_PASSWORD}"}])
     assert any("nur bei fill" in e for e in validate_profile(bad_goto))
-    bad_selector = variant(steps=[{"op": "click", "selector": "#${SS_USER}"}])
+    bad_selector = variant(steps=[{"op": "click", "selector": "#${SWITCHER_USER}"}])
     assert any("Selektor" in e for e in validate_profile(bad_selector))
 
 
@@ -104,11 +104,11 @@ def test_placeholders_found():
 
 
 def test_substitute():
-    env = {"SS_PASSWORD": "geheim"}
-    assert substitute("pw=${SS_PASSWORD}!", env) == "pw=geheim!"
+    env = {"SWITCHER_PASSWORD": "geheim"}
+    assert substitute("pw=${SWITCHER_PASSWORD}!", env) == "pw=geheim!"
     with pytest.raises(KeyError):
-        substitute("${SS_MISSING}", env)
+        substitute("${SWITCHER_MISSING}", env)
     with pytest.raises(KeyError):
         substitute("${HOME}", {"HOME": "/root"})
     with pytest.raises(KeyError):
-        substitute("${SS_PASSWORD}", {"SS_PASSWORD": ""})
+        substitute("${SWITCHER_PASSWORD}", {"SWITCHER_PASSWORD": ""})

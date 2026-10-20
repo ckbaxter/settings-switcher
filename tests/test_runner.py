@@ -47,7 +47,7 @@ def make_profile(base_url, steps, name="testlauf"):
 
 GOOD_STEPS = [
     {"op": "goto", "value": "/"},
-    {"op": "fill", "selector": "#pw", "value": "${SS_PASSWORD}"},
+    {"op": "fill", "selector": "#pw", "value": "${SWITCHER_PASSWORD}"},
     {"op": "click", "selector": "#login"},
     {"op": "wait_for", "selector": "#panel"},
     {"op": "check", "selector": "#enabled"},
@@ -66,11 +66,11 @@ def write_profile(tmp_path, profile):
 
 def env_for(tmp_path, **extra):
     env = {
-        "SS_PROFILES_DIR": str(tmp_path / "profiles"),
-        "SS_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
-        "SS_ALLOWED_HOSTS": "127.0.0.1",
-        "SS_PASSWORD": "sehr-geheim-123",
-        "SS_USER": "tester",
+        "SWITCHER_PROFILES_DIR": str(tmp_path / "profiles"),
+        "SWITCHER_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
+        "SWITCHER_ALLOWED_HOSTS": "127.0.0.1",
+        "SWITCHER_PASSWORD": "sehr-geheim-123",
+        "SWITCHER_USER": "tester",
     }
     env.update(extra)
     (tmp_path / "artifacts").mkdir(exist_ok=True)
@@ -106,8 +106,8 @@ def test_resolve_url():
 
 
 def test_describe_step_hides_fill_value():
-    text = runner.describe_step({"op": "fill", "selector": "#pw", "value": "${SS_PASSWORD}"})
-    assert "SS_PASSWORD" not in text and "Zeichen" in text
+    text = runner.describe_step({"op": "fill", "selector": "#pw", "value": "${SWITCHER_PASSWORD}"})
+    assert "SWITCHER_PASSWORD" not in text and "Zeichen" in text
 
 
 def test_preflight_ok(tmp_path):
@@ -117,20 +117,20 @@ def test_preflight_ok(tmp_path):
 
 def test_preflight_requires_allowed_hosts(tmp_path):
     profile = make_profile("http://127.0.0.1:1", GOOD_STEPS)
-    errors = runner.preflight(profile, env_for(tmp_path, SS_ALLOWED_HOSTS=""))
-    assert any("SS_ALLOWED_HOSTS" in e for e in errors)
+    errors = runner.preflight(profile, env_for(tmp_path, SWITCHER_ALLOWED_HOSTS=""))
+    assert any("SWITCHER_ALLOWED_HOSTS" in e for e in errors)
 
 
 def test_preflight_base_url_host_must_be_allowed(tmp_path):
     profile = make_profile("http://evil.example", GOOD_STEPS)
-    assert any("nicht in SS_ALLOWED_HOSTS" in e for e in runner.preflight(profile, env_for(tmp_path)))
+    assert any("nicht in SWITCHER_ALLOWED_HOSTS" in e for e in runner.preflight(profile, env_for(tmp_path)))
 
 
 def test_preflight_missing_variable(tmp_path):
     profile = make_profile("http://127.0.0.1:1", GOOD_STEPS)
     env = env_for(tmp_path)
-    del env["SS_PASSWORD"]
-    assert any("SS_PASSWORD" in e for e in runner.preflight(profile, env))
+    del env["SWITCHER_PASSWORD"]
+    assert any("SWITCHER_PASSWORD" in e for e in runner.preflight(profile, env))
 
 
 def test_preflight_goto_to_other_host(tmp_path):
@@ -201,7 +201,7 @@ def test_missing_element_fails(server, tmp_path):
 
 def test_screenshots_for_every_step(server, tmp_path):
     write_profile(tmp_path, make_profile(server, GOOD_STEPS))
-    assert runner.main(["testlauf"], env_for(tmp_path, SS_SCREENSHOTS="all")) == 0
+    assert runner.main(["testlauf"], env_for(tmp_path, SWITCHER_SCREENSHOTS="all")) == 0
     assert len(list((tmp_path / "artifacts").glob("testlauf-*.png"))) == len(GOOD_STEPS)
 
 

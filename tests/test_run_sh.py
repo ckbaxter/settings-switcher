@@ -39,7 +39,7 @@ def repo(tmp_path):
     shutil.copytree(ROOT / "runner", work / "runner")
     shutil.copytree(ROOT / "shared", work / "shared", ignore=shutil.ignore_patterns("__pycache__"))
     env_file = work / "runner.env"
-    env_file.write_text("SS_ALLOWED_HOSTS=192.168.178.1\n")
+    env_file.write_text("SWITCHER_ALLOWED_HOSTS=192.168.178.1\n")
     env_file.chmod(0o600)
 
     bin_dir = tmp_path / "bin"
