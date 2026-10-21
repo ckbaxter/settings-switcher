@@ -284,3 +284,15 @@ def test_unsaved_changes_are_warned_before_switching(live, page):
     expect(page.locator("#editor-title")).to_have_text("Profil: zwei")
     assert page.input_value("#f-desc") == "gespeichert"
     assert len(asked) == 1
+
+
+def test_version_is_shown_after_connecting(live, page):
+    from pathlib import Path
+
+    version = (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    url, _ = live
+    page.goto(url)
+    expect(page.locator("#app-version")).to_be_hidden()  # vor dem Verbinden nicht abrufbar
+    page.fill("#token", TOKEN)
+    page.click("text=Verbinden")
+    expect(page.locator("#app-version")).to_have_text("v" + version)

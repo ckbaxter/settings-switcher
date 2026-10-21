@@ -253,3 +253,18 @@ def test_parse_allowed_ips_mixed_families():
     assert _ip_allowed("10.1.2.3", nets) and _ip_allowed("fd00::1", nets)
     assert not _ip_allowed("11.0.0.1", nets) and not _ip_allowed("fe80::1", nets)
     assert parse_allowed_ips("") == [] and parse_allowed_ips(None) == []
+
+
+def test_config_reports_version_from_version_file(client):
+    from pathlib import Path
+
+    expected = (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    assert expected and client.get("/api/config", headers=H).json()["version"] == expected
+
+
+def test_images_ship_the_version_file():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for dockerfile in ("editor/Dockerfile", "recorder/Dockerfile"):
+        assert "COPY VERSION ./VERSION" in (root / dockerfile).read_text(encoding="utf-8"), dockerfile

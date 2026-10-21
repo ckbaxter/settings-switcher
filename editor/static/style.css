@@ -701,3 +701,5 @@ button.suggest-btn:hover { text-decoration: underline; }
   background: #ffc247;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.18);
 }
+
+.version { font-size: 12px; color: var(--muted); }

@@ -16,6 +16,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import secrets
 import tempfile
 import time
@@ -33,6 +34,17 @@ from shared.hosts import parse_allowed_hosts
 from shared.profile_schema import NAME_RE, OPS, find_placeholders, validate_profile
 
 log = logging.getLogger("uvicorn.error")
+
+VERSION_RE = re.compile(r"[0-9A-Za-z.+-]{1,32}")
+
+
+def read_version():
+    """Version aus der Datei VERSION (Repo-Root, im Image unter /app). Leer, wenn sie fehlt oder ungewöhnlich aussieht."""
+    try:
+        text = (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    return text if VERSION_RE.fullmatch(text) else ""
 
 MAX_BODY = 200_000
 STATIC_DIR = Path(__file__).parent / "static"
@@ -265,7 +277,7 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None, allowed_ips=No
 
     @app.get("/api/config", dependencies=[Depends(require_token)])
     def config():
-        return {"recorder": recorder is not None, "viewport": VIEWPORT}
+        return {"recorder": recorder is not None, "viewport": VIEWPORT, "version": read_version()}
 
     @app.post("/api/rec/start", dependencies=[Depends(require_token)])
     async def rec_start(request: Request):
