@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-21
+
 ### Hinzugefügt
 - `make start` und `make stop` starten und beenden den Recorder (Editor mit Live-Browser) oder den Editor ohne Browser:
   `make start recorder`, `make stop recorder`, `make start editor`. Ohne Angabe gilt der Recorder.
