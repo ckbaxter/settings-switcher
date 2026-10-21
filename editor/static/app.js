@@ -18,6 +18,7 @@
   const stepState = new Map(); // Schritt -> "done" | "running" | "paused" (nur während der Wiedergabe bis zur Stopmarke)
   const newSteps = new Set(); // Schritte, die nach der Wiedergabe neu aufgezeichnet wurden
   const suggestions = new Map(); // Schritt -> { loading } | { options, message } (Selektor-Vorschläge aus dem Live-Browser)
+  let scrollTarget = null; // Schritt, der nach dem nächsten Zeichnen in den sichtbaren Bereich gescrollt wird
   let profileList = []; // letzter Stand von /api/profiles, für die Übersicht
   let recorderAvailable = false;
 
@@ -370,11 +371,23 @@
       }
     });
 
+    scrollToTarget();
     updateRecMode();
     $("step-count").textContent = String(steps.length);
     $("tab-count").textContent = String(steps.length);
     $("empty-steps").hidden = steps.length > 0;
     $("no-check").hidden = !(steps.length > 0 && !steps.some((s) => s.op.indexOf("expect_") === 0));
+  }
+
+  // Die Schritte scrollen mit: Der gerade abgespielte oder neu aufgezeichnete Schritt bleibt neben dem Live-Browser im Bild.
+  function scrollToTarget() {
+    const target = scrollTarget;
+    scrollTarget = null;
+    const at = target ? steps.indexOf(target) : -1;
+    const item = at >= 0 ? $("steps").querySelectorAll(".step")[at] : null;
+    if (!item) return;
+    const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    item.scrollIntoView({ block: "center", behavior: calm ? "auto" : "smooth" });
   }
 
   // Beschriftung des Aufnahme-Knopfs: Bei einem Profil mit Schritten wird nichts neu aufgenommen, sondern ergänzt.
@@ -710,6 +723,7 @@
       if (n < index - 1) stepState.set(s, "done");
       else if (n === index - 1) stepState.set(s, state);
     });
+    scrollTarget = rec.replaySteps[index - 1] || null;
     renderSteps();
   }
 
@@ -782,6 +796,7 @@
       } else {
         steps.push(added);
       }
+      scrollTarget = added;
       renderSteps();
     } else if (event.t === "replay") {
       showReplay("Wiedergabe: Schritt " + event.index + " von " + event.total + " (" + event.label + ")", { resume: "", retry: false });
