@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-21
+
 ### Hinzugefügt
 - Editor: Die Version steht in der Kopfzeile (neben „Recorder“), gelesen aus der Datei `VERSION`. Die Images enthalten die
   Datei dafür jetzt. Die Version erscheint erst nach dem Verbinden mit dem Token (`GET /api/config` liefert `version`).
