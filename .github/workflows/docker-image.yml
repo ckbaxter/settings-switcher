@@ -1,0 +1,137 @@
+name: Docker-Images bauen
+
+# Baut die Images bei Änderungen an der Anwendung und veröffentlicht sie in der
+# GitHub Container Registry:
+#
+#   ghcr.io/<owner>/settings-switcher-runner     führt ein Profil aus (siehe run.sh)
+#   ghcr.io/<owner>/settings-switcher-recorder   Editor mit Live-Browser
+#   ghcr.io/<owner>/settings-switcher-editor     Editor ohne Browser
+#
+#   Push auf main (Quellen, VERSION, dieser Workflow)  ->  Tags: latest, sha-<kurz>
+#   Git-Tag vX.Y.Z                                     ->  Tags: X.Y.Z, X.Y, latest
+#   Pull Request (Quellen, VERSION)                    ->  nur bauen, nichts veröffentlichen
+#   Manuell (Actions -> Run workflow)                  ->  wie Push auf main
+#
+# Vor dem Bauen läuft eine schnelle Prüfung: Version und Tag müssen zusammenpassen, und der
+# Playwright-Pin muss zum Playwright-Image in den Dockerfiles passen (tests/test_versions.py).
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+    paths:
+      - "runner/**"
+      - "editor/**"
+      - "recorder/**"
+      - "shared/**"
+      - "requirements-dev.txt"
+      - "VERSION"
+      - ".github/workflows/docker-image.yml"
+  pull_request:
+    paths:
+      - "runner/**"
+      - "editor/**"
+      - "recorder/**"
+      - "shared/**"
+      - "requirements-dev.txt"
+      - "VERSION"
+      - ".github/workflows/docker-image.yml"
+  workflow_dispatch:
+
+# Pro Branch/Tag nur ein Lauf; ein neuerer Push bricht den laufenden Build ab.
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v7
+
+      - name: Version bestimmen
+        id: ver
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} passt nicht zur Datei VERSION (${version})"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Playwright-Pin und Image-Version prüfen
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/venv"
+          "${RUNNER_TEMP}/venv/bin/pip" install --quiet pytest
+          "${RUNNER_TEMP}/venv/bin/python" -m pytest tests/test_versions.py
+
+  build:
+    needs: pruefen
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # Ein fehlgeschlagenes Image soll die anderen nicht abbrechen.
+      fail-fast: false
+      matrix:
+        include:
+          - name: runner
+            dockerfile: runner/Dockerfile
+            title: Settings Switcher Runner
+          - name: recorder
+            dockerfile: recorder/Dockerfile
+            title: Settings Switcher Recorder
+          - name: editor
+            dockerfile: editor/Dockerfile
+            title: Settings Switcher Editor
+
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v7
+
+      - name: Buildx einrichten
+        uses: docker/setup-buildx-action@v4
+
+      - name: Bei ghcr.io anmelden
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image-Tags festlegen
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short,enable=${{ github.ref_type == 'branch' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.version=${{ needs.pruefen.outputs.version }}
+
+      - name: Image bauen und veröffentlichen
+        uses: docker/build-push-action@v7
+        with:
+          # Build-Kontext ist das Repo-Root (die Dockerfiles kopieren shared/ und runner/ bzw. editor/).
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

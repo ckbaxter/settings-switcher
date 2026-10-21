@@ -8,13 +8,17 @@
 #   Stopp:  docker compose --profile record down
 # Beide Dienste teilen sich Port und Namen, starte nur einen von beiden.
 # Keiner bekommt Fritzbox-Zugangsdaten (die stehen nur in runner.env).
+#
+# Die Images werden standardmäßig lokal gebaut (--build). Wer die veröffentlichten Images aus der GitHub Container
+# Registry nutzen will, setzt in .env SWITCHER_EDITOR_IMAGE / SWITCHER_RECORDER_IMAGE (siehe .env.example und
+# docs/betrieb.md) und startet mit "docker compose pull" statt mit "--build".
 services:
   editor:
     profiles: ["editor"]
     build:
       context: .
       dockerfile: editor/Dockerfile
-    image: settings-switcher-editor
+    image: ${SWITCHER_EDITOR_IMAGE:-settings-switcher-editor}
     container_name: settings-switcher-editor
     restart: "no"
     user: "${SWITCHER_UID:-1000}:${SWITCHER_GID:-1000}"
@@ -41,7 +45,7 @@ services:
     build:
       context: .
       dockerfile: recorder/Dockerfile
-    image: settings-switcher-recorder
+    image: ${SWITCHER_RECORDER_IMAGE:-settings-switcher-recorder}
     container_name: settings-switcher-editor
     restart: "no"
     init: true

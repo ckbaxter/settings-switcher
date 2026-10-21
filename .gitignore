@@ -5,3 +5,7 @@ artifacts/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Eigene Profile enthalten Adressen und Selektoren der eigenen Geräte: nicht einchecken (Vorlage: beispiel.json)
+profiles/*.json
+!profiles/beispiel.json
