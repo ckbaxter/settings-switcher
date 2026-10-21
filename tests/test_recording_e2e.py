@@ -447,3 +447,24 @@ def test_suggest_reports_selector_that_does_not_match(live, server, page):
     step.get_by_role("button", name="Stabileren Selektor vorschlagen").click()
     expect(step.locator(".suggest")).to_contain_text("nicht vor")
     page.click("#rec-stop")
+
+
+# ---------- Beschriftung des Aufnahme-Knopfs ----------
+
+
+def test_record_button_says_what_it_does_for_existing_profile(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, [{"op": "goto", "value": "/"}, {"op": "click", "selector": "#ok"}, {"op": "click", "selector": "#b"}])
+    connect(page, url)
+    # Übersicht: die Karte eines Profils mit Schritten verspricht kein „Aufnehmen von vorn“
+    expect(page.locator(".pcard-actions .rec-btn")).to_have_text("Schritte anhängen")
+    page.click("#profile-list button")
+    expect(page.locator("#rec-start")).to_have_text("Schritte anhängen")
+    expect(page.locator("#rec-mode")).to_contain_text("3 Schritte")
+    page.locator("#steps .step").nth(1).locator(".flag").click()
+    expect(page.locator("#rec-start")).to_have_text("Ab Stopmarke aufnehmen")
+    expect(page.locator("#rec-mode")).to_contain_text("ersten 2 Schritte")
+    page.locator("#steps .step").nth(1).locator(".flag").click()
+    expect(page.locator("#rec-start")).to_have_text("Schritte anhängen")
+    page.click("#new-profile")
+    expect(page.locator("#rec-start")).to_have_text("Aufnahme starten")

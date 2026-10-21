@@ -26,6 +26,9 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
   gewählt ist.
 
 ### Geändert
+- Editor: Der Aufnahme-Knopf sagt, was er tut. Bei einem Profil mit Schritten heißt er „Schritte anhängen“, mit gesetzter
+  Stopmarke „Ab Stopmarke aufnehmen“, nur bei einem leeren Profil „Aufnahme starten“. Eine Zeile darunter erklärt,
+  was passiert. Die Karte in der Profilübersicht beschriftet ihren Knopf genauso.
 - Neue Oberfläche für Editor und Recorder: Live-Browser links, Schritte rechts (auf dem Handy als Tabs), Meldungen als
   Toasts, Dunkelmodus nach Systemeinstellung. Die Seite lädt weiterhin nichts von außen (Systemschrift, eigene Symbole).
 

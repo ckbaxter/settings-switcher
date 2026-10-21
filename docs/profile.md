@@ -51,7 +51,9 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 ## Ablauf aufzeichnen (Live-Browser im Editor)
 
 1. `docker compose --profile record up -d --build`, dann `http://127.0.0.1:8080` öffnen und mit dem Token verbinden.
-2. Profil anlegen oder öffnen, `base_url` eintragen (muss zu `SWITCHER_ALLOWED_HOSTS` passen) und **Aufnahme starten**.
+2. Profil anlegen oder öffnen, `base_url` eintragen (muss zu `SWITCHER_ALLOWED_HOSTS` passen) und **Aufnahme starten**. Hat ein vorhandenes Profil schon Schritte, heißt der
+   Knopf **Schritte anhängen**: Die vorhandenen Schritte bleiben, neue kommen ans Ende (mitten im Ablauf weitermachen: siehe
+   Stopmarke unten).
 3. Im Live-Bild klicken wie in einem normalen Browser. Jede Aktion erscheint als Schritt:
 
 | Aktion im Live-Bild | Aufgezeichneter Schritt |
@@ -75,7 +77,7 @@ Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem FRITZ!OS-Update), m
 
 1. Profil öffnen und beim letzten unveränderten Schritt auf **⚑** klicken. Das ist die Stopmarke; ein
    zweiter Klick entfernt sie. Die Marke gibt es nur im Browserfenster, sie steht nicht im Profil.
-2. **Aufnahme starten.** Der Recorder spielt die Schritte bis zur Marke im Live-Browser ab. Das wird nicht
+2. **Ab Stopmarke aufnehmen** (so heißt der Knopf, sobald eine Marke gesetzt ist). Der Recorder spielt die Schritte bis zur Marke im Live-Browser ab. Das wird nicht
    erneut aufgezeichnet.
 3. Danach zeichnest du wie gewohnt weiter auf. Neue Schritte kommen **hinter die Marke**, die bisherigen
    Folgeschritte bleiben stehen. Veraltete Schritte entfernst du mit ✕.
