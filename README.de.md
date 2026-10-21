@@ -26,7 +26,7 @@ Der Exit-Code sagt, ob es geklappt hat. So lässt sich der Aufruf aus einem Zeit
 - Prüfungen nach der Änderung: Ein Lauf gilt nur dann als erfolgreich, wenn die Einstellung wirklich im erwarteten Zustand ist
 - Optional automatische Wiederholung des ganzen Laufs, wenn er ab und zu fehlschlägt
 - Passwörter stehen nie in einem Profil; der Browser darf nur die Adressen besuchen, die du erlaubst
-- Fertige Docker-Images, gebaut von einem GitHub-Workflow
+- Fertige Docker-Images zum Herunterladen (GitHub Container Registry)
 
 ## Voraussetzungen
 
@@ -43,11 +43,13 @@ Der Exit-Code sagt, ob es geklappt hat. So lässt sich der Aufruf aus einem Zeit
 
 Die Beispieldateien und die Dokumentation verwenden eine Fritzbox als durchgehendes Beispiel (Adresse `192.168.178.1`); ersetze sie durch deine eigene.
 
+Eine ausführlichere Anleitung: [docs/erste-schritte.md](docs/erste-schritte.md)
+
 Mehr: [docs/konfiguration.md](docs/konfiguration.md) · [docs/profile.md](docs/profile.md) · [docs/betrieb.md](docs/betrieb.md) · [docs/fehlersuche.md](docs/fehlersuche.md) · [docs/sicherheit-und-grenzen.md](docs/sicherheit-und-grenzen.md)
 
-## Versionierung
+## Versionen und Mitarbeit
 
-[Semantic Versioning](https://semver.org/lang/de/). Einzige Quelle ist die Datei [`VERSION`](VERSION). Änderungen stehen im [CHANGELOG](CHANGELOG.md), Releases sind Git-Tags `vX.Y.Z`; die passenden Docker-Images landen in der GitHub Container Registry.
+Die Versionen folgen [Semantic Versioning](https://semver.org/lang/de/), Änderungen stehen im [CHANGELOG](CHANGELOG.md). Wer mitarbeiten oder Releases erstellen will, findet alles in [docs/entwicklung.md](docs/entwicklung.md). Lizenz: MIT.
 
 ## Sicherheitshinweis
 

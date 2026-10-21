@@ -14,19 +14,22 @@ docker compose --profile record down                       # und wieder beenden
 docker compose --profile editor up -d --build              # Alternative: Editor ohne Browser (nur Profile bearbeiten)
 ```
 
-In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SWITCHER_ALLOWED_HOSTS` (Fritzbox-IP) stehen.
+In `.env` müssen für den Live-Recorder `EDITOR_TOKEN` und `SWITCHER_ALLOWED_HOSTS` (Adresse des Geräts, z. B. die Fritzbox-IP) stehen.
 `record` und `editor` benutzen denselben Port, starte nur einen von beiden.
 Starte `run.sh` als normaler Benutzer (UID wie `SWITCHER_UID`), nicht mit `sudo` (siehe [Fehlersuche](fehlersuche.md)).
 
-`run.sh` baut das Runner-Image selbst, wenn es fehlt oder sich `runner/Dockerfile`,
-`runner/requirements.txt`, `runner/runner.py` oder `shared/` seit dem letzten Bau geändert haben
-(Prüfsumme als Image-Label `ss.source-hash`). Nach einem `git pull` genügt also der nächste Aufruf; der
-Bau braucht dann Netz für Basis-Image und pip und dauert beim ersten Mal länger. Schlägt er fehl, endet
-`run.sh` mit Exit 2 und führt nichts aus. `./run.sh --build <profil>` erzwingt einen Neubau, etwa um
-Sicherheitsupdates der Basis-Image-Schicht zu holen, wenn sich der Tag nicht geändert hat.
-Editor und Recorder sind eigene Images und werden mit `docker compose … up -d --build` neu gebaut.
+`run.sh` baut das Runner-Image selbst, wenn es fehlt oder sich der Quellcode des Runners seit dem letzten Bau geändert
+hat. Nach einem `git pull` genügt also der nächste Aufruf; der Bau braucht dann Netz für Basis-Image und pip und dauert
+beim ersten Mal länger. Schlägt er fehl, endet `run.sh` mit Exit 2 und führt nichts aus. `./run.sh --build <profil>`
+erzwingt einen Neubau, etwa um Sicherheitsupdates der Basis-Image-Schicht zu holen, wenn sich der Tag nicht geändert hat.
+Editor und Recorder sind eigene Images und werden mit `docker compose … up -d --build` neu gebaut (siehe
+[Aktualisieren](betrieb.md#aktualisieren)).
 
 ### Zwei Host-Listen, nicht verwechseln
+
+**Kurz:** `SWITCHER_ALLOWED_HOSTS` ist die Adresse des Geräts und muss in `runner.env` und `.env` gleich sein.
+`EDITOR_ALLOWED_HOSTS` musst du nur setzen, wenn du den Editor nicht unter `localhost` oder `127.0.0.1` aufrufst
+(Vorgabe: `localhost,127.0.0.1`). Die Einzelheiten:
 
 | | `EDITOR_ALLOWED_HOSTS` | `SWITCHER_ALLOWED_HOSTS` |
 | --- | --- | --- |
@@ -59,8 +62,6 @@ Einschränkung. Ein ungültiger Eintrag lässt den Dienst nicht starten.
   sieht der Editor je nach Docker-Setup meist die Gateway-Adresse der Bridge (oft `172.x.0.1`), nicht die des
   Proxys. Im Zweifel `docker compose logs`: abgelehnte Zugriffe stehen dort mit der gesehenen Adresse.
 - Das ersetzt weder das Token noch `EDITOR_BIND` oder eine Firewall, es ergänzt sie.
-- Nicht getestet: Das Verhalten mit echtem Docker-Netz und Nginx Proxy Manager. Die Prüfung selbst ist durch
-  Tests abgedeckt (`tests/test_editor.py`, `tests/test_recorder_ws.py`).
 
 ## Veröffentlichte Images statt lokalem Bau (optional)
 
@@ -73,5 +74,5 @@ GitHub-Workflow veröffentlichten Images nutzen. Dafür stehen in der `.env` (Vo
 | `SWITCHER_RECORDER_IMAGE` | Image des Recorders (Editor mit Live-Browser), z. B. `ghcr.io/<owner>/settings-switcher-recorder:latest` |
 
 Ohne diese Variablen gelten die lokal gebauten Images `settings-switcher-editor` und `settings-switcher-recorder`.
-Ablauf und Anmeldung bei der Registry: [Betrieb](betrieb.md#image-workflow-und-registry). Das Runner-Image
+Ablauf und Anmeldung bei der Registry: [Betrieb](betrieb.md#veröffentlichte-images-nutzen). Das Runner-Image
 (`SWITCHER_IMAGE`, nur für `run.sh`) baut `run.sh` weiterhin selbst.

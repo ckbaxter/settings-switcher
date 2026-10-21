@@ -26,7 +26,7 @@ The exit code tells you whether it worked, so you can call it from a scheduler o
 - Checks after the change, so a run only counts as successful when the setting really is in the expected state
 - Optional automatic retry of the whole run if it fails now and then
 - Passwords are never stored in a profile; the browser can only visit the addresses you allow
-- Ready-made Docker images, built by a GitHub workflow
+- Ready-made Docker images to download (GitHub Container Registry)
 
 ## Requirements
 
@@ -43,11 +43,13 @@ The exit code tells you whether it worked, so you can call it from a scheduler o
 
 The example files and the documentation use a Fritzbox as the running example (address `192.168.178.1`); replace it with your own.
 
+A more detailed walkthrough: [docs/erste-schritte.md](docs/erste-schritte.md)
+
 More: [docs/konfiguration.md](docs/konfiguration.md) · [docs/profile.md](docs/profile.md) · [docs/betrieb.md](docs/betrieb.md) · [docs/fehlersuche.md](docs/fehlersuche.md) · [docs/sicherheit-und-grenzen.md](docs/sicherheit-und-grenzen.md) (the detailed documentation is currently in German; the web interface is German as well).
 
-## Versioning
+## Versions and contributing
 
-[Semantic Versioning](https://semver.org). The single source of truth is the [`VERSION`](VERSION) file. Changes are listed in [CHANGELOG.md](CHANGELOG.md); releases are Git tags `vX.Y.Z`, and the matching Docker images are published to the GitHub Container Registry.
+Versions follow [Semantic Versioning](https://semver.org), and changes are listed in [CHANGELOG.md](CHANGELOG.md). If you want to contribute or create releases, see [docs/entwicklung.md](docs/entwicklung.md) (in German). License: MIT.
 
 ## Security notice
 
