@@ -9,8 +9,17 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 ### Hinzugefügt
 - `make start` und `make stop` starten und beenden den Recorder (Editor mit Live-Browser) oder den Editor ohne Browser:
   `make start recorder`, `make stop recorder`, `make start editor`. Ohne Angabe gilt der Recorder.
+- Editor: Hinweis „Keine Prüfung im Profil“ mit Knopf zum Hinzufügen einer Prüfung (während der Aufnahme direkt ins
+  Bild klicken). Strg+S speichert das Profil.
+- Editor: Schrittkarten zeigen eine Einschätzung des Selektors (stabil, mittel, fragil; nach Muster, keine Garantie)
+  und `${SWITCHER_…}`-Variablen als Chip. Bei der Wiedergabe bis zur Stopmarke erscheinen die Schritte als
+  „abgespielt“, „läuft“ oder „angehalten“, neu aufgezeichnete Schritte als „neu“.
+- Recorder: Aufnahmeanzeige mit Zeit, Adressleiste mit Hinweis auf erlaubte Hosts und Banner, wenn eine Prüfung
+  gewählt ist.
 
 ### Geändert
+- Neue Oberfläche für Editor und Recorder: Live-Browser links, Schritte rechts (auf dem Handy als Tabs), Meldungen als
+  Toasts, Dunkelmodus nach Systemeinstellung. Die Seite lädt weiterhin nichts von außen (Systemschrift, eigene Symbole).
 - `README.md` und `README.de.md` beschreiben das Tool allgemein als Werkzeug für beliebige Weboberflächen; die Fritzbox
   steht als Anwendungsfall und als getestetes Gerät darin. Neu: Hinweis auf nicht automatisierbare Seiten (CAPTCHA,
   Einmalcode).
