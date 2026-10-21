@@ -692,3 +692,12 @@ button.suggest-btn:hover { text-decoration: underline; }
 .banner-text { flex: 1; min-width: 0; }
 
 .theme-toggle { color: var(--muted); }
+
+/* Punkt im Speichern-Knopf: Es gibt Änderungen, die noch nicht gespeichert sind. Kostet keine Zeile im Kopf. */
+.dirty-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ffc247;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.18);
+}
