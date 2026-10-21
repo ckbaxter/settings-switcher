@@ -7,113 +7,207 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <h1>Settings Switcher</h1>
-    <form id="token-form" class="token-form" autocomplete="off">
-      <label for="token">Token</label>
-      <input id="token" type="password" autocomplete="off" required>
-      <button type="submit">Verbinden</button>
-    </form>
+  <header class="appbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="15" cy="12" r="1.6" fill="currentColor"/></svg>
+      </span>
+      <h1>Settings Switcher</h1>
+      <span id="mode-tag" class="tag" hidden>Recorder</span>
+    </div>
+    <div class="conn">
+      <span id="conn-ok" class="chip chip-ok" hidden><span class="dot"></span>Verbunden</span>
+      <button id="token-change" type="button" class="icon-btn" hidden aria-label="Token ändern" title="Token ändern">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/></svg>
+      </button>
+      <form id="token-form" class="token-form" autocomplete="off">
+        <label for="token">Token</label>
+        <input id="token" type="password" autocomplete="off" required>
+        <button type="submit" class="primary">Verbinden</button>
+      </form>
+    </div>
   </header>
 
   <div id="messages" class="messages" role="status" aria-live="polite"></div>
 
   <main>
-    <aside>
+    <aside class="profiles">
       <h2>Profile</h2>
       <ul id="profile-list" class="profile-list"></ul>
-      <button id="new-profile" type="button" disabled>Neues Profil</button>
+      <button id="new-profile" type="button" class="primary wide" disabled>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Neues Profil
+      </button>
     </aside>
 
     <section id="editor" hidden>
-      <h2 id="editor-title">Profil</h2>
-      <div class="grid">
-        <label for="f-name">Name</label>
-        <input id="f-name" maxlength="64" placeholder="portfreigabe-an">
-        <label for="f-desc">Beschreibung</label>
-        <input id="f-desc" maxlength="500">
-        <label for="f-base">Basis-URL</label>
-        <input id="f-base" maxlength="500" placeholder="http://192.168.178.1">
-        <label for="f-timeout">Timeout (ms)</label>
-        <input id="f-timeout" type="number" min="1000" max="60000" step="500">
-      </div>
-
-      <div id="recorder" class="recorder" hidden>
-        <h3>Aufnahme</h3>
-        <p class="hint">
-          Klicke im Live-Browser durch den Ablauf. Jede Aktion erscheint unten als Schritt.
-          Der Browser erreicht nur die erlaubten Hosts. Passwörter werden nie gespeichert.
-        </p>
-        <p class="hint">
-          Ablauf hat sich geändert? Setze mit ⚑ bei einem Schritt eine Stopmarke. Die Aufnahme spielt dann die
-          Schritte bis dahin ab und zeichnet ab dort weiter auf. Neue Schritte kommen hinter die Marke, die
-          bisherigen Folgeschritte bleiben stehen (bei Bedarf entfernen). Zugangsdaten kennt der Recorder nicht:
-          Bei Login-Schritten hält die Wiedergabe an, du tippst selbst ein (wird nicht aufgezeichnet).
-        </p>
-        <div class="rec-bar">
-          <label for="rec-path">Startpfad</label>
-          <input id="rec-path" value="/" maxlength="200">
-          <button id="rec-start" type="button" class="primary">Aufnahme starten</button>
-          <button id="rec-stop" type="button" hidden>Aufnahme beenden</button>
+      <div class="editor-head">
+        <div class="editor-title">
+          <h2 id="editor-title">Profil</h2>
+          <span id="rec-pill" class="rec-pill" hidden title="Zeit seit Beginn der Aufnahme in diesem Fenster">
+            <span class="rec-dot"></span>
+            <span>Aufnahme läuft</span>
+            <span id="rec-time" class="mono">00:00</span>
+          </span>
         </div>
-        <div id="rec-live" hidden>
-          <div id="rec-picks" class="rec-bar">
-            <span class="hint">Prüfung setzen, dann ins Bild klicken:</span>
-            <button type="button" data-kind="expect_text">Text</button>
-            <button type="button" data-kind="expect_visible">Sichtbar</button>
-            <button type="button" data-kind="expect_checked">Aktiviert</button>
-            <button type="button" data-kind="expect_unchecked">Nicht aktiviert</button>
-            <button type="button" data-kind="wait_for">Warten auf</button>
-          </div>
-          <div id="rec-replay" class="rec-bar replay" role="status" hidden>
-            <span id="rec-replay-text"></span>
-            <button id="rp-resume" type="button" class="primary" hidden></button>
-            <button id="rp-retry" type="button" hidden>Wiederholen</button>
-            <button id="rp-stop" type="button" title="Wiedergabe hier beenden und ab hier aufzeichnen">Hier aufzeichnen</button>
-          </div>
-          <div class="viewer"><img id="live" alt="Live-Ansicht des Browsers" draggable="false"></div>
-          <div id="rec-scroll" class="rec-bar" role="group" aria-label="Seite im Live-Browser scrollen">
-            <span class="hint">Scrollen:</span>
-            <button type="button" data-scroll="left" aria-label="nach links" title="nach links">◀</button>
-            <button type="button" data-scroll="up" aria-label="nach oben" title="nach oben">▲</button>
-            <button type="button" data-scroll="down" aria-label="nach unten" title="nach unten">▼</button>
-            <button type="button" data-scroll="right" aria-label="nach rechts" title="nach rechts">▶</button>
-            <span class="hint">oder im Bild wischen</span>
-          </div>
-          <div id="rec-url" class="hint"></div>
-          <div id="rec-note" class="msg warn"></div>
-          <div id="rec-select" class="rec-bar" hidden></div>
-          <form id="rec-text-form" class="rec-bar" autocomplete="off">
-            <input id="rec-text" type="password" maxlength="500" autocomplete="off"
-                   placeholder="Text für das ausgewählte Feld">
-            <select id="rec-as" aria-label="Speichern als">
-              <option value="auto">Speichern: automatisch</option>
-              <option value="user">als ${SWITCHER_USER}</option>
-              <option value="password">als ${SWITCHER_PASSWORD}</option>
-              <option value="literal">Text wörtlich</option>
-            </select>
-            <label><input id="rec-show" type="checkbox"> anzeigen</label>
-            <button type="submit">Eintragen</button>
-            <button type="button" data-key="Enter">Enter</button>
-            <button type="button" data-key="Tab">Tab</button>
-            <button type="button" data-key="Escape">Esc</button>
-          </form>
+        <div class="actions">
+          <button id="validate" type="button">Prüfen</button>
+          <button id="save" type="button" class="primary">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>
+            Speichern
+            <kbd>Strg S</kbd>
+          </button>
+          <button id="delete" type="button" class="danger" hidden>Löschen</button>
         </div>
       </div>
 
-      <h3>Schritte</h3>
-      <p class="hint">
-        Schritte entstehen im Aufnahme-Modus (falls aktiv) oder per Hand (Selektoren z. B. mit
-        <code>playwright codegen</code>, siehe docs/profile.md). Passwörter nie eintragen, nur
-        <code>${SWITCHER_PASSWORD}</code> bei „fill“.
-      </p>
-      <ol id="steps" class="steps"></ol>
-      <button id="add-step" type="button">+ Schritt</button>
+      <div class="card">
+        <div class="grid">
+          <label for="f-name">Name</label>
+          <input id="f-name" maxlength="64" placeholder="portfreigabe-an">
+          <label for="f-desc">Beschreibung</label>
+          <input id="f-desc" maxlength="500">
+          <label for="f-base">Basis-URL</label>
+          <input id="f-base" maxlength="500" placeholder="http://192.168.178.1">
+          <label for="f-timeout">Timeout (ms)</label>
+          <input id="f-timeout" type="number" min="1000" max="60000" step="500">
+        </div>
+      </div>
 
-      <div class="actions">
-        <button id="validate" type="button">Prüfen</button>
-        <button id="save" type="button" class="primary">Speichern</button>
-        <button id="delete" type="button" class="danger" hidden>Löschen</button>
+      <div id="tabs" class="tabs" role="tablist" aria-label="Ansicht" hidden>
+        <button id="tab-browser" type="button" role="tab" aria-selected="false">Browser</button>
+        <button id="tab-steps" type="button" role="tab" aria-selected="true">Schritte <span id="tab-count" class="count">0</span></button>
+      </div>
+
+      <div id="workspace" class="workspace" data-tab="steps">
+        <div id="recorder" class="card recorder" hidden>
+          <div class="card-head">
+            <h3>Live-Browser</h3>
+          </div>
+          <p class="hint">
+            Klicke im Live-Browser durch den Ablauf. Jede Aktion erscheint als Schritt.
+            Der Browser erreicht nur die erlaubten Hosts, Passwörter werden nie gespeichert.
+          </p>
+          <details class="more">
+            <summary>Ablauf hat sich geändert? (Stopmarke)</summary>
+            <p class="hint">
+              Setze mit ⚑ bei einem Schritt eine Stopmarke. Die Aufnahme spielt dann die
+              Schritte bis dahin ab und zeichnet ab dort weiter auf. Neue Schritte kommen hinter die Marke, die
+              bisherigen Folgeschritte bleiben stehen (bei Bedarf entfernen). Zugangsdaten kennt der Recorder nicht:
+              Bei Login-Schritten hält die Wiedergabe an, du tippst selbst ein (wird nicht aufgezeichnet).
+            </p>
+          </details>
+          <div class="rec-bar">
+            <label for="rec-path">Startpfad</label>
+            <input id="rec-path" value="/" maxlength="200">
+            <button id="rec-start" type="button" class="rec">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+              Aufnahme starten
+            </button>
+            <button id="rec-stop" type="button" class="stop" hidden>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+              Aufnahme beenden
+            </button>
+          </div>
+
+          <div id="rec-placeholder" class="placeholder">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
+            <div>Hier erscheint der Browser, sobald die Aufnahme läuft.</div>
+          </div>
+
+          <div id="rec-live" hidden>
+            <div class="addr">
+              <div class="addr-url">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
+                <span id="rec-url" class="mono"></span>
+              </div>
+              <span class="chip chip-ok">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>
+                Nur erlaubte Hosts
+              </span>
+              <span id="rec-size" class="muted mono"></span>
+            </div>
+
+            <div id="rec-replay" class="rec-bar replay" role="status" hidden>
+              <span id="rec-replay-text"></span>
+              <button id="rp-resume" type="button" class="primary" hidden></button>
+              <button id="rp-retry" type="button" hidden>Wiederholen</button>
+              <button id="rp-stop" type="button" title="Wiedergabe hier beenden und ab hier aufzeichnen">Hier aufzeichnen</button>
+            </div>
+
+            <div class="viewer">
+              <img id="live" alt="Live-Ansicht des Browsers" draggable="false">
+              <div id="pick-banner" class="pick-banner" hidden></div>
+            </div>
+
+            <div id="rec-picks" class="segment-row">
+              <span class="seg-label">Prüfung setzen</span>
+              <div class="segment" role="group" aria-label="Art der Prüfung">
+                <button type="button" data-kind="expect_text">Text</button>
+                <button type="button" data-kind="expect_visible">Sichtbar</button>
+                <button type="button" data-kind="expect_checked">Aktiviert</button>
+                <button type="button" data-kind="expect_unchecked">Nicht aktiviert</button>
+                <button type="button" data-kind="wait_for">Warten auf</button>
+              </div>
+              <span class="hint">Dann ins Bild klicken.</span>
+            </div>
+
+            <div id="rec-scroll" class="rec-bar" role="group" aria-label="Seite im Live-Browser scrollen">
+              <span class="hint">Scrollen:</span>
+              <button type="button" data-scroll="left" aria-label="nach links" title="nach links">◀</button>
+              <button type="button" data-scroll="up" aria-label="nach oben" title="nach oben">▲</button>
+              <button type="button" data-scroll="down" aria-label="nach unten" title="nach unten">▼</button>
+              <button type="button" data-scroll="right" aria-label="nach rechts" title="nach rechts">▶</button>
+              <span class="hint">oder im Bild wischen</span>
+            </div>
+            <div id="rec-note" class="msg warn"></div>
+            <div id="rec-select" class="rec-bar" hidden></div>
+            <form id="rec-text-form" class="rec-bar" autocomplete="off">
+              <input id="rec-text" type="password" maxlength="500" autocomplete="off"
+                     placeholder="Text für das ausgewählte Feld">
+              <select id="rec-as" aria-label="Speichern als">
+                <option value="auto">Speichern: automatisch</option>
+                <option value="user">als ${SWITCHER_USER}</option>
+                <option value="password">als ${SWITCHER_PASSWORD}</option>
+                <option value="literal">Text wörtlich</option>
+              </select>
+              <label class="check"><input id="rec-show" type="checkbox"> anzeigen</label>
+              <button type="submit">Eintragen</button>
+              <button type="button" data-key="Enter">Enter</button>
+              <button type="button" data-key="Tab">Tab</button>
+              <button type="button" data-key="Escape">Esc</button>
+            </form>
+          </div>
+        </div>
+
+        <div id="steps-card" class="card steps-card">
+          <div class="card-head">
+            <h3>Schritte</h3>
+            <span id="step-count" class="count">0</span>
+            <button id="add-step" type="button" class="head-btn">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Schritt
+            </button>
+          </div>
+          <p class="hint">
+            Schritte entstehen im Aufnahme-Modus (falls aktiv) oder per Hand (Selektoren z. B. mit
+            <code>playwright codegen</code>, siehe docs/profile.md). Passwörter nie eintragen, nur
+            <code>${SWITCHER_PASSWORD}</code> bei „fill“.
+          </p>
+          <ol id="steps" class="steps"></ol>
+          <div id="empty-steps" class="empty" hidden>
+            <div class="empty-title">Noch keine Schritte</div>
+            <div class="hint">Starte eine Aufnahme und klicke durch den Ablauf, oder lege einen Schritt per Hand an.</div>
+          </div>
+          <div id="no-check" class="banner" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>
+            <div class="banner-text">
+              Keine Prüfung im Profil. Ein erfolgreicher Lauf beweist dann keine Wirkung.
+              Besser: Seite nach dem Speichern neu laden (goto) und dann prüfen.
+              <div><button id="add-check" type="button" class="link">Prüfung „Aktiviert“ hinzufügen</button></div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </main>

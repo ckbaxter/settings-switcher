@@ -2,6 +2,7 @@
 
 (function () {
   const NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+  const SVG_NS = "http://www.w3.org/2000/svg";
   const $ = (id) => document.getElementById(id);
 
   let token = "";
@@ -14,6 +15,78 @@
   let isNew = false;
   let steps = [];
   let markerStep = null; // Stopmarke: der Schritt, nach dem die Aufnahme weitergehen soll (nur im Browserfenster, nicht im Profil)
+  const stepState = new Map(); // Schritt -> "done" | "running" | "paused" (nur während der Wiedergabe bis zur Stopmarke)
+  const newSteps = new Set(); // Schritte, die nach der Wiedergabe neu aufgezeichnet wurden
+
+  // Pfade der Symbole (24x24, Linien), eigene Zeichnung statt Fremdbibliothek
+  const ICON = {
+    goto: "M5 12h14M13 6l6 6-6 6",
+    click: "M5 3l14 7-6 2-2 6z",
+    fill: "M4 7V5h16v2M12 5v14M9 19h6",
+    check: "M5 12l4 4 10-10",
+    uncheck: "M5 12h14",
+    select: "M6 9l6 6 6-6",
+    key: "M4 6h16v12H4zM8 10h.01M12 10h.01M16 10h.01M8 14h8",
+    clock: "M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z",
+    expect: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M8.5 12l2.5 2.5 5-5",
+    up: "M6 15l6-6 6 6",
+    down: "M6 9l6 6 6-6",
+    close: "M6 6l12 12M18 6L6 18",
+    flag: "M6 21V4M6 5h12l-2 4 2 4H6",
+    warn: "M12 3l10 18H2zM12 10v5M12 18v.5",
+    lock: "M5 11h14v9H5zM8 11V8a4 4 0 018 0v3",
+  };
+  const OP_ICON = {
+    goto: ICON.goto,
+    click: ICON.click,
+    click_text: ICON.click,
+    fill: ICON.fill,
+    check: ICON.check,
+    uncheck: ICON.uncheck,
+    select_option: ICON.select,
+    press: ICON.key,
+    wait_for: ICON.clock,
+    wait_ms: ICON.clock,
+    expect_visible: ICON.expect,
+    expect_text: ICON.expect,
+    expect_checked: ICON.expect,
+    expect_unchecked: ICON.expect,
+  };
+  const OP_TINT = {
+    click: "action",
+    click_text: "action",
+    check: "ok",
+    uncheck: "ok",
+    expect_visible: "ok",
+    expect_text: "ok",
+    expect_checked: "ok",
+    expect_unchecked: "ok",
+  };
+  const STATE_LABEL = { done: "abgespielt", running: "läuft", paused: "angehalten" };
+  const PICK_LABEL = {
+    expect_text: "Text",
+    expect_visible: "Sichtbar",
+    expect_checked: "Aktiviert",
+    expect_unchecked: "Nicht aktiviert",
+    wait_for: "Warten auf",
+  };
+
+  function icon(path, size) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", String(size || 16));
+    svg.setAttribute("height", String(size || 16));
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.9");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    const p = document.createElementNS(SVG_NS, "path");
+    p.setAttribute("d", path);
+    svg.appendChild(p);
+    return svg;
+  }
 
   function el(tag, props, children) {
     const node = document.createElement(tag);
@@ -42,10 +115,29 @@
     return { status: res.status, ok: res.ok, data };
   }
 
+  // Meldungen als Toasts: Erfolg verschwindet nach ein paar Sekunden, Fehler und Hinweise bleiben bis zur nächsten Meldung.
+  let sayCounter = 0;
   function say(items) {
     const box = $("messages");
     box.replaceChildren();
-    items.forEach((item) => box.appendChild(el("div", { class: "msg " + item.kind, text: item.text })));
+    const mine = ++sayCounter;
+    items.forEach((item) => {
+      const close = el("button", { type: "button", class: "msg-close", "aria-label": "Meldung schließen" }, [icon(ICON.close, 14)]);
+      close.addEventListener("click", () => say([]));
+      const glyph = item.kind === "ok" ? ICON.check : item.kind === "error" ? ICON.close : ICON.warn;
+      box.appendChild(
+        el("div", { class: "msg " + item.kind }, [
+          el("span", { class: "msg-icon" }, [icon(glyph, 16)]),
+          el("span", { class: "msg-text", text: item.text }),
+          close,
+        ])
+      );
+    });
+    if (items.length && items.every((item) => item.kind === "ok")) {
+      setTimeout(() => {
+        if (sayCounter === mine) box.replaceChildren();
+      }, 6000);
+    }
   }
 
   function apiError(res) {
@@ -60,6 +152,44 @@
     return ops.find((o) => o.op === op) || { op, required: [], description: "" };
   }
 
+  // Einschätzung des Selektors nach Muster (Heuristik, keine Garantie)
+  function selectorQuality(step) {
+    const sel = (step.selector || "").trim();
+    if (step.op === "click_text") return step.value ? { level: "ok", text: "stabil · Text" } : null;
+    if (!sel) return null;
+    if (/^todo/i.test(sel)) return { level: "todo", text: "TODO offen" };
+    if (/^(text=|role=)|:has-text\(|:text\(|get_by_/i.test(sel)) return { level: "ok", text: "stabil · Text oder Rolle" };
+    if (/^(xpath=|\/\/)|:nth-(child|of-type)\(|>>\s*nth=/i.test(sel)) return { level: "bad", text: "fragil · Position" };
+    const id = sel.match(/^#([\w-]+)$/) || sel.match(/\[id=["']?([\w-]+)["']?\]/);
+    if (id) {
+      return /\d{2,}|[0-9a-f]{8,}/i.test(id[1])
+        ? { level: "bad", text: "fragil · generierte ID" }
+        : { level: "mid", text: "mittel · ID" };
+    }
+    if (/\[(name|type|placeholder|aria-label|data-[\w-]+)[~|^$*]?=/i.test(sel)) return { level: "mid", text: "mittel · Attribut" };
+    return null;
+  }
+
+  function fillQualitySlot(slot, step) {
+    slot.replaceChildren();
+    const q = selectorQuality(step);
+    if (q) {
+      slot.appendChild(
+        el("span", { class: "pill q-" + q.level, title: "Einschätzung nach Muster, keine Garantie", text: q.text })
+      );
+    }
+  }
+
+  const VAR_ONLY_RE = /^\$\{(SWITCHER_[A-Z0-9_]+)\}$/;
+  function fillVarSlot(slot, step) {
+    slot.replaceChildren();
+    const match = step.op === "fill" ? VAR_ONLY_RE.exec(step.value || "") : null;
+    slot.hidden = !match;
+    if (!match) return;
+    slot.appendChild(el("code", {}, [icon(ICON.lock, 12), el("span", { text: match[1] })]));
+    slot.appendChild(el("span", { text: "kommt aus runner.env, nie ins Profil" }));
+  }
+
   function renderSteps() {
     const list = $("steps");
     list.replaceChildren();
@@ -67,6 +197,8 @@
       const spec = opSpec(step.op);
       const needsSelector = spec.required.includes("selector");
       const needsValue = spec.required.includes("value");
+      const qualitySlot = el("span", { class: "q-slot" });
+      const varSlot = el("div", { class: "var-chip", hidden: true });
 
       const select = el("select", { title: spec.description, "aria-label": "Operation" });
       ops.forEach((o) => select.appendChild(el("option", { value: o.op, text: o.op, selected: o.op === step.op })));
@@ -85,7 +217,10 @@
         maxLength: 500,
         "aria-label": "Selektor",
       });
-      selector.addEventListener("input", () => (step.selector = selector.value));
+      selector.addEventListener("input", () => {
+        step.selector = selector.value;
+        fillQualitySlot(qualitySlot, step);
+      });
 
       const value = el("input", {
         value: step.value || "",
@@ -94,7 +229,11 @@
         maxLength: 500,
         "aria-label": "Wert",
       });
-      value.addEventListener("input", () => (step.value = value.value));
+      value.addEventListener("input", () => {
+        step.value = value.value;
+        fillQualitySlot(qualitySlot, step);
+        fillVarSlot(varSlot, step);
+      });
 
       const comment = el("input", {
         value: step.comment || "",
@@ -104,46 +243,73 @@
       });
       comment.addEventListener("input", () => (step.comment = comment.value));
 
-      const up = el("button", { type: "button", text: "↑", title: "Nach oben", disabled: i === 0 });
+      const up = el("button", { type: "button", title: "Nach oben", "aria-label": "Nach oben", disabled: i === 0 }, [icon(ICON.up, 16)]);
       up.addEventListener("click", () => {
         steps.splice(i - 1, 0, steps.splice(i, 1)[0]);
         renderSteps();
       });
-      const down = el("button", { type: "button", text: "↓", title: "Nach unten", disabled: i === steps.length - 1 });
+      const down = el(
+        "button",
+        { type: "button", title: "Nach unten", "aria-label": "Nach unten", disabled: i === steps.length - 1 },
+        [icon(ICON.down, 16)]
+      );
       down.addEventListener("click", () => {
         steps.splice(i + 1, 0, steps.splice(i, 1)[0]);
         renderSteps();
       });
-      const del = el("button", { type: "button", text: "✕", title: "Schritt entfernen", class: "danger" });
+      const del = el("button", { type: "button", title: "Schritt entfernen", "aria-label": "Schritt entfernen", class: "danger" }, [
+        icon(ICON.close, 16),
+      ]);
       del.addEventListener("click", () => {
         if (markerStep === step) markerStep = null;
+        stepState.delete(step);
+        newSteps.delete(step);
         steps.splice(i, 1);
         renderSteps();
       });
 
       const marked = step === markerStep;
-      const flag = el("button", {
-        type: "button",
-        text: "⚑",
-        class: "flag" + (marked ? " active" : ""),
-        title: marked
-          ? "Stopmarke entfernen"
-          : "Stopmarke nach diesem Schritt setzen: Die Aufnahme spielt bis hier ab und zeichnet ab hier weiter auf",
-        "aria-label": "Stopmarke",
-        "aria-pressed": marked ? "true" : "false",
-      });
+      const flag = el(
+        "button",
+        {
+          type: "button",
+          class: "flag" + (marked ? " active" : ""),
+          title: marked
+            ? "Stopmarke entfernen"
+            : "Stopmarke nach diesem Schritt setzen: Die Aufnahme spielt bis hier ab und zeichnet ab hier weiter auf",
+          "aria-label": "Stopmarke",
+          "aria-pressed": marked ? "true" : "false",
+        },
+        [icon(ICON.flag, 16)]
+      );
       flag.addEventListener("click", () => {
         markerStep = marked ? null : step;
         renderSteps();
       });
 
+      fillQualitySlot(qualitySlot, step);
+      fillVarSlot(varSlot, step);
+
+      const state = stepState.get(step);
+      const top = el("div", { class: "step-top" }, [el("span", { class: "step-n", text: String(i + 1) }), select, qualitySlot]);
+      if (state) top.appendChild(el("span", { class: "pill st-" + state, text: STATE_LABEL[state] }));
+      if (newSteps.has(step)) top.appendChild(el("span", { class: "pill st-new", text: "neu" }));
+
+      const tile = el("div", { class: "step-icon tint-" + (OP_TINT[step.op] || "neutral") }, [icon(OP_ICON[step.op] || ICON.click, 18)]);
+      const body = el("div", { class: "step-body" }, [top, selector, varSlot, el("div", { class: "step-row" }, [value, comment])]);
+
       list.appendChild(
-        el("li", { class: "step" }, [select, selector, value, comment, el("div", { class: "tools" }, [flag, up, down, del])])
+        el("li", { class: "step" + (state ? " state-" + state : "") }, [tile, body, el("div", { class: "tools" }, [flag, up, down, del])])
       );
       if (marked) {
-        list.appendChild(el("li", { class: "marker-line", text: "⚑ Stopmarke: bis hier abspielen, ab hier aufzeichnen" }));
+        list.appendChild(el("li", { class: "marker-line", text: "Stopmarke: bis hier abspielen, ab hier aufzeichnen" }));
       }
     });
+
+    $("step-count").textContent = String(steps.length);
+    $("tab-count").textContent = String(steps.length);
+    $("empty-steps").hidden = steps.length > 0;
+    $("no-check").hidden = !(steps.length > 0 && !steps.some((s) => s.op.indexOf("expect_") === 0));
   }
 
   function collect() {
@@ -163,6 +329,12 @@
     return profile;
   }
 
+  function setTab(name) {
+    $("workspace").dataset.tab = name;
+    $("tab-browser").setAttribute("aria-selected", name === "browser" ? "true" : "false");
+    $("tab-steps").setAttribute("aria-selected", name === "steps" ? "true" : "false");
+  }
+
   function show(profile, fresh) {
     isNew = fresh;
     $("editor").hidden = false;
@@ -179,6 +351,9 @@
       comment: s.comment || "",
     }));
     markerStep = null;
+    stepState.clear();
+    newSteps.clear();
+    setTab("steps");
     $("delete").hidden = fresh;
     say([]);
     renderSteps();
@@ -196,7 +371,7 @@
       const button = el(
         "button",
         { type: "button", class: p.name === activeName ? "active" : "" },
-        [el("span", { text: p.name }), el("span", { class: "sub", text: p.steps + " Schritte · " + p.description })]
+        [el("span", { class: "p-name", text: p.name }), el("span", { class: "sub", text: p.steps + " Schritte · " + p.description })]
       );
       button.addEventListener("click", () => openProfile(p.name));
       list.appendChild(el("li", {}, [button]));
@@ -214,11 +389,18 @@
     loadList(name);
   }
 
+  function showConnected(connected) {
+    $("token-form").hidden = connected;
+    $("conn-ok").hidden = !connected;
+    $("token-change").hidden = !connected;
+  }
+
   async function connect(event) {
     if (event) event.preventDefault();
     token = $("token").value || token;
     const res = await api("GET", "/api/ops");
     if (!res.ok) {
+      showConnected(false);
       say(apiError(res));
       return;
     }
@@ -230,6 +412,7 @@
     ops = res.data;
     $("new-profile").disabled = false;
     $("editor").hidden = true;
+    showConnected(true);
     say([]);
     await loadList(null);
     await initRecorder();
@@ -282,13 +465,37 @@
     box.textContent = text;
   }
 
+  // Aufnahmezeit seit Beginn in diesem Fenster
+  let timerId = null;
+  function startTimer() {
+    const began = Date.now();
+    const tick = () => {
+      const seconds = Math.floor((Date.now() - began) / 1000);
+      $("rec-time").textContent = String(Math.floor(seconds / 60)).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
+    };
+    stopTimer();
+    tick();
+    timerId = setInterval(tick, 1000);
+  }
+  function stopTimer() {
+    if (timerId !== null) clearInterval(timerId);
+    timerId = null;
+  }
+
   function setRecording(active) {
     rec.active = active;
     $("rec-start").hidden = active;
     $("rec-stop").hidden = !active;
     $("rec-live").hidden = !active;
+    $("rec-placeholder").hidden = active;
+    $("rec-pill").hidden = !active;
     $("rec-path").disabled = active;
-    if (!active) {
+    if (active) {
+      startTimer();
+      setTab("browser");
+    } else {
+      stopTimer();
+      setTab("steps");
       setPick(null);
       if (rec.frame) URL.revokeObjectURL(rec.frame);
       rec.frame = null;
@@ -298,10 +505,10 @@
       rec.insert = false;
       rec.after = null;
       rec.replaySteps = null;
-      if (markerStep) {
-        markerStep = null; // die Marke gehörte zu dieser Aufnahme
-        renderSteps();
-      }
+      markerStep = null; // die Marke gehörte zu dieser Aufnahme
+      stepState.clear();
+      newSteps.clear();
+      renderSteps();
     }
   }
 
@@ -314,12 +521,28 @@
     $("rp-resume").textContent = buttons.resume || "";
   }
 
+  // Schrittkarten während der Wiedergabe färben: davor "abgespielt", der aktuelle läuft oder ist angehalten
+  function markReplay(index, state) {
+    if (!rec.replaySteps) return;
+    stepState.clear();
+    rec.replaySteps.forEach((s, n) => {
+      if (n < index - 1) stepState.set(s, "done");
+      else if (n === index - 1) stepState.set(s, state);
+    });
+    renderSteps();
+  }
+
   function onReplayDone(event) {
     $("rec-replay").hidden = true;
     if (rec.replaySteps) {
       // Neue Schritte kommen hinter den letzten abgespielten bzw. übersprungenen Schritt.
       rec.after = event.at > 0 ? rec.replaySteps[event.at - 1] : null;
       rec.insert = true;
+      stepState.clear();
+      rec.replaySteps.forEach((s, n) => {
+        if (n < event.at) stepState.set(s, "done");
+      });
+      renderSteps();
     }
     if (!rec.replaySteps) return note("ok", "Wiedergabe beendet. Jetzt wird aufgezeichnet.");
     const where = event.at > 0 ? "hinter Schritt " + event.at : "am Anfang";
@@ -329,6 +552,12 @@
   function setPick(kind) {
     rec.pick = kind;
     document.querySelectorAll("#rec-picks button").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
+    const banner = $("pick-banner");
+    banner.hidden = !kind;
+    if (kind) {
+      const label = PICK_LABEL[kind] || kind;
+      banner.textContent = (kind === "wait_for" ? label : "Prüfung „" + label + "“") + ": Element im Bild anklicken";
+    }
   }
 
   function send(message) {
@@ -352,9 +581,14 @@
     box.hidden = false;
   }
 
+  function showViewportSize() {
+    $("rec-size").textContent = rec.viewport.width + " × " + rec.viewport.height;
+  }
+
   function onRecEvent(event) {
     if (event.t === "hello") {
       rec.viewport = event.viewport;
+      showViewportSize();
       $("rec-url").textContent = event.url || "";
     } else if (event.t === "step") {
       const added = { op: event.step.op, selector: event.step.selector || "", value: event.step.value || "", comment: event.step.comment || "" };
@@ -363,15 +597,18 @@
       if (rec.insert) {
         steps.splice(at + 1, 0, added); // at = -1: ganz an den Anfang
         rec.after = added;
+        newSteps.add(added);
       } else {
         steps.push(added);
       }
       renderSteps();
     } else if (event.t === "replay") {
       showReplay("Wiedergabe: Schritt " + event.index + " von " + event.total + " (" + event.label + ")", { resume: "", retry: false });
+      markReplay(event.index, "running");
     } else if (event.t === "replay_pause") {
       const resume = event.kind === "manual" ? "Erledigt, weiter" : "Schritt überspringen";
       showReplay(event.message, { resume, retry: !!event.can_retry });
+      markReplay(event.index, "paused");
     } else if (event.t === "replay_done") {
       onReplayDone(event);
     } else if (event.t === "url") {
@@ -438,6 +675,8 @@
     rec.replaySteps = replaySteps;
     rec.insert = false;
     rec.after = null;
+    stepState.clear();
+    newSteps.clear();
     if (!replaySteps) {
       const start = { op: res.data.step.op, selector: "", value: res.data.step.value, comment: "" };
       // Ein leeres oder nur aus dem Start-goto bestehendes Profil wird ersetzt, sonst angehängt
@@ -460,9 +699,14 @@
 
   async function initRecorder() {
     const config = await api("GET", "/api/config");
-    $("recorder").hidden = !(config.ok && config.data.recorder);
-    if (!config.ok || !config.data.recorder) return;
+    const available = config.ok && config.data.recorder;
+    $("recorder").hidden = !available;
+    $("workspace").classList.toggle("no-rec", !available);
+    $("tabs").hidden = !available;
+    $("mode-tag").hidden = !available;
+    if (!available) return;
     rec.viewport = config.data.viewport;
+    showViewportSize();
     const state = await api("GET", "/api/rec/state");
     if (state.ok && state.data.active && !rec.active) {
       setRecording(true);
@@ -575,6 +819,12 @@
   $("rp-stop").addEventListener("click", () => send({ t: "replay_stop" }));
 
   $("token-form").addEventListener("submit", connect);
+  $("token-change").addEventListener("click", () => {
+    showConnected(false);
+    $("token").focus();
+  });
+  $("tab-browser").addEventListener("click", () => setTab("browser"));
+  $("tab-steps").addEventListener("click", () => setTab("steps"));
   $("new-profile").addEventListener("click", () => {
     if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
     show({ name: "", description: "", base_url: "http://", timeout_ms: 15000, steps: [{ op: "goto", value: "/" }] }, true);
@@ -583,10 +833,30 @@
     steps.push({ op: "click", selector: "", value: "", comment: "" });
     renderSteps();
   });
+  // Hinweis "Keine Prüfung": während der Aufnahme direkt ins Bild klicken, sonst einen Prüfschritt anlegen
+  $("add-check").addEventListener("click", () => {
+    if (rec.active) {
+      setTab("browser");
+      setPick("expect_checked");
+      note("ok", "Prüfung „Aktiviert“ gewählt: Element im Bild anklicken.");
+      return;
+    }
+    steps.push({ op: "expect_checked", selector: "", value: "", comment: "Ergebnis prüfen" });
+    renderSteps();
+    const inputs = document.querySelectorAll('#steps .step input[aria-label="Selektor"]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
   $("validate").addEventListener("click", validate);
   $("save").addEventListener("click", save);
   $("delete").addEventListener("click", remove);
+  document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && !$("editor").hidden) {
+      event.preventDefault();
+      save();
+    }
+  });
 
+  setPick(null);
   if (token) {
     $("token").value = token;
     connect();
