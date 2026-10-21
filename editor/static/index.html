@@ -205,9 +205,9 @@
           <div class="card-head">
             <h3>Schritte</h3>
             <span id="step-count" class="count">0</span>
-            <button id="add-step" type="button" class="head-btn">
+            <button id="add-step" type="button" class="head-btn" title="Neuen Schritt ganz oben einfügen" aria-label="Schritt am Anfang einfügen">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-              Schritt
+              Schritt am Anfang
             </button>
           </div>
           <p class="hint">
@@ -216,6 +216,10 @@
             <code>${SWITCHER_PASSWORD}</code> bei „fill“.
           </p>
           <ol id="steps" class="steps"></ol>
+          <button id="add-step-end" type="button" class="add-end" title="Neuen Schritt ganz unten anhängen" aria-label="Schritt am Ende anhängen">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Schritt am Ende
+          </button>
           <div id="empty-steps" class="empty" hidden>
             <div class="empty-title">Noch keine Schritte</div>
             <div class="hint">Starte eine Aufnahme und klicke durch den Ablauf, oder lege einen Schritt per Hand an.</div>

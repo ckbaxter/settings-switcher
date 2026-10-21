@@ -68,7 +68,7 @@ def test_create_save_reload_and_open(live, page):
     page.fill("#f-name", "ui-test")
     page.fill("#f-desc", "per UI angelegt")
     page.fill("#f-base", "http://192.168.178.1")
-    page.click("#add-step")
+    page.click("#add-step-end")
     step = page.locator(".step").nth(1)
     step.locator("select").select_option("click")
     step.locator('input[aria-label="Selektor"]').fill("#ok")
@@ -204,3 +204,18 @@ def test_theme_toggle_cycles_and_is_remembered(live, page):
     toggle.click()
     assert page.evaluate("document.documentElement.hasAttribute('data-theme')") is False
     assert page.evaluate("localStorage.getItem('ss-theme')") is None
+
+
+def test_add_step_at_start_and_at_end(live, page):
+    url, _ = live
+    page.goto(url)
+    page.fill("#token", TOKEN)
+    page.click("text=Verbinden")
+    expect(page.locator("#new-profile")).to_be_enabled()
+    page.click("#new-profile")  # beginnt mit einem goto
+    page.click("#add-step")  # oben: ganz an den Anfang
+    page.locator(".step").nth(0).locator("select").select_option("press")
+    page.click("#add-step-end")  # unten: ans Ende
+    page.locator(".step").nth(2).locator("select").select_option("check")
+    ops = [page.locator(".step").nth(i).locator("select").input_value() for i in range(3)]
+    assert ops == ["press", "goto", "check"]
