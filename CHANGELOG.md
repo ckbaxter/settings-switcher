@@ -26,6 +26,9 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
   gewählt ist.
 
 ### Geändert
+- Editor: Ungespeicherte Änderungen werden angezeigt (Punkt im Speichern-Knopf). Beim Wechsel zu einem
+  anderen Profil, zu „Neues Profil“ oder zur Übersicht fragt der Editor nach, ebenso beim Schließen oder Neuladen des
+  Tabs. Nach dem Speichern oder bei unveränderten Werten kommt keine Rückfrage.
 - Editor: Bei zwei Spalten (ab 901 px Breite, z. B. iPad quer) stehen Profilkopf, Profilfelder und Live-Browser links in
   der Breite des Live-Fensters, die Schritte rechts über die ganze Höhe vom oberen Rand an. Die Schrittliste bleibt im Bild
   und scrollt für sich. Beim Abspielen bis zur Stopmarke und beim Aufzeichnen scrollt sie zum aktuellen Schritt.

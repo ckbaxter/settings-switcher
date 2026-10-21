@@ -219,3 +219,68 @@ def test_add_step_at_start_and_at_end(live, page):
     page.locator(".step").nth(2).locator("select").select_option("check")
     ops = [page.locator(".step").nth(i).locator("select").input_value() for i in range(3)]
     assert ops == ["press", "goto", "check"]
+
+
+def test_unsaved_changes_are_warned_before_switching(live, page):
+    url, _ = live
+    for name in ("eins", "zwei"):
+        profile = {"name": name, "description": name, "base_url": "http://192.168.178.1", "steps": [{"op": "goto", "value": "/"}]}
+        assert httpx.put(f"{url}/api/profiles/{name}", headers={"X-Token": TOKEN}, json=profile).status_code == 200
+    asked = []
+    answer = {"accept": False}
+
+    def on_dialog(dialog):
+        asked.append(dialog.message)
+        dialog.accept() if answer["accept"] else dialog.dismiss()
+
+    page.on("dialog", on_dialog)
+    page.goto(url)
+    page.fill("#token", TOKEN)
+    page.click("text=Verbinden")
+    page.locator("#profile-list button", has_text="eins").click()
+    expect(page.locator("#editor-title")).to_have_text("Profil: eins")
+    expect(page.locator("#dirty-pill")).to_be_hidden()
+
+    # Ohne Änderung wechselt man ohne Rückfrage
+    page.locator("#profile-list button", has_text="zwei").click()
+    expect(page.locator("#editor-title")).to_have_text("Profil: zwei")
+    assert asked == []
+
+    probe = "() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; }"
+    assert page.evaluate(probe) is False  # ohne Änderung kein Hinweis beim Schließen des Tabs
+
+    # Änderung: Hinweis erscheint, Wechsel fragt nach und bleibt bei "Abbrechen" im aktuellen Profil
+    page.fill("#f-desc", "geändert")
+    expect(page.locator("#dirty-pill")).to_be_visible()
+    assert page.evaluate(probe) is True  # Tab schließen oder neu laden: der Browser fragt nach
+    for trigger in (
+        lambda: page.locator("#profile-list button", has_text="eins").click(),
+        lambda: page.click("#new-profile"),
+        lambda: page.click("#to-overview"),
+    ):
+        trigger()
+    assert len(asked) == 3 and "ungespeicherte" in asked[0]
+    expect(page.locator("#editor-title")).to_have_text("Profil: zwei")
+    assert page.input_value("#f-desc") == "geändert"
+
+    # Zurücksetzen auf den alten Wert zählt nicht als Änderung
+    page.fill("#f-desc", "zwei")
+    expect(page.locator("#dirty-pill")).to_be_hidden()
+
+    # Nach dem Speichern keine Rückfrage mehr
+    page.fill("#f-desc", "gespeichert")
+    page.click("#save")
+    expect(page.locator("#messages")).to_contain_text("Gespeichert")
+    expect(page.locator("#dirty-pill")).to_be_hidden()
+    asked.clear()
+    page.locator("#profile-list button", has_text="eins").click()
+    expect(page.locator("#editor-title")).to_have_text("Profil: eins")
+    assert asked == []
+
+    # Bei "OK" wird verworfen und gewechselt
+    page.fill("#f-desc", "weg damit")
+    answer["accept"] = True
+    page.locator("#profile-list button", has_text="zwei").click()
+    expect(page.locator("#editor-title")).to_have_text("Profil: zwei")
+    assert page.input_value("#f-desc") == "gespeichert"
+    assert len(asked) == 1

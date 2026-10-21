@@ -18,6 +18,7 @@
   const stepState = new Map(); // Schritt -> "done" | "running" | "paused" (nur während der Wiedergabe bis zur Stopmarke)
   const newSteps = new Set(); // Schritte, die nach der Wiedergabe neu aufgezeichnet wurden
   const suggestions = new Map(); // Schritt -> { loading } | { options, message } (Selektor-Vorschläge aus dem Live-Browser)
+  let savedSnapshot = ""; // Stand des Profils beim Öffnen bzw. Speichern, zum Erkennen ungespeicherter Änderungen
   let scrollTarget = null; // Schritt, der nach dem nächsten Zeichnen in den sichtbaren Bereich gescrollt wird
   let profileList = []; // letzter Stand von /api/profiles, für die Übersicht
   let recorderAvailable = false;
@@ -373,6 +374,7 @@
 
     scrollToTarget();
     updateRecMode();
+    refreshDirty();
     $("step-count").textContent = String(steps.length);
     $("tab-count").textContent = String(steps.length);
     $("empty-steps").hidden = steps.length > 0;
@@ -416,6 +418,22 @@
     $("rec-start-label").textContent = mode.label;
     $("rec-mode").textContent = mode.hint;
     $("rec-mode").hidden = rec.active;
+  }
+
+  function isDirty() {
+    return !$("editor").hidden && JSON.stringify(collect()) !== savedSnapshot;
+  }
+
+  function refreshDirty() {
+    const dirty = isDirty();
+    $("dirty-pill").hidden = !dirty;
+    $("save").title = dirty ? "Ungespeicherte Änderungen speichern (Strg S)" : "Speichern (Strg S)";
+  }
+
+  // Vor dem Wechseln zu einem anderen Profil (oder zur Übersicht) fragen, wenn Änderungen noch nicht gespeichert sind
+  function confirmDiscard() {
+    if (!isDirty()) return true;
+    return window.confirm("Dieses Profil hat ungespeicherte Änderungen. Trotzdem wechseln und die Änderungen verwerfen?");
   }
 
   function collect() {
@@ -465,6 +483,8 @@
     $("delete").hidden = fresh;
     say([]);
     renderSteps();
+    savedSnapshot = JSON.stringify(collect());
+    refreshDirty();
   }
 
   async function loadList(activeName) {
@@ -516,8 +536,7 @@
       );
       record.prepend(icon("M12 4a8 8 0 100 16 8 8 0 000-16zM12 9a3 3 0 100 6 3 3 0 000-6z", 14));
       record.addEventListener("click", async () => {
-        await openProfile(p.name);
-        if (!$("editor").hidden && !rec.active) startRecording();
+        if (await openProfile(p.name)) startRecording();
       });
       actions.push(record);
     }
@@ -566,18 +585,25 @@
 
   function newProfile() {
     if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
+    if (!confirmDiscard()) return;
     show({ name: "", description: "", base_url: "http://", timeout_ms: 15000, steps: [{ op: "goto", value: "/" }] }, true);
   }
 
+  // true, wenn das Profil jetzt offen ist (false: Aufnahme läuft, Wechsel abgelehnt oder Fehler)
   async function openProfile(name) {
-    if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
+    if (rec.active) {
+      say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
+      return false;
+    }
+    if (!confirmDiscard()) return false;
     const res = await api("GET", "/api/profiles/" + encodeURIComponent(name));
     if (!res.ok) {
       say(apiError(res));
-      return;
+      return false;
     }
     show(res.data, false);
     loadList(name);
+    return true;
   }
 
   function showConnected(connected) {
@@ -629,6 +655,8 @@
     const items = [{ kind: "ok", text: "Gespeichert." }];
     res.data.warnings.forEach((text) => items.push({ kind: "warn", text: text + " Der Runner führt es so nicht aus." }));
     isNew = false;
+    savedSnapshot = JSON.stringify(profile);
+    refreshDirty();
     $("f-name").readOnly = true;
     $("delete").hidden = false;
     $("editor-title").textContent = "Profil: " + profile.name;
@@ -1041,6 +1069,7 @@
   $("overview-new").addEventListener("click", newProfile);
   $("to-overview").addEventListener("click", () => {
     if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
+    if (!confirmDiscard()) return;
     showOverview();
   });
   // Oben: neuer Schritt ganz am Anfang. Unten: ans Ende anhängen.
@@ -1074,6 +1103,16 @@
       event.preventDefault();
       save();
     }
+  });
+
+  // Eingaben in den Profilfeldern und in den Schritten: Anzeige "Nicht gespeichert" nachführen
+  $("editor").addEventListener("input", refreshDirty);
+  $("editor").addEventListener("change", refreshDirty);
+  // Tab schließen oder Seite neu laden mit ungespeicherten Änderungen: der Browser fragt nach
+  window.addEventListener("beforeunload", (event) => {
+    if (!isDirty()) return;
+    event.preventDefault();
+    event.returnValue = "";
   });
 
   setPick(null);
