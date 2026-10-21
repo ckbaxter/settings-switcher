@@ -11,6 +11,7 @@ PAGE = """<!doctype html><meta charset="utf-8"><title>Testbox</title>
 <input name="pwd" type="password" class="a" style="left:20px;top:70px;width:300px;height:30px">
 <button id="login" class="a" style="left:20px;top:120px;width:120px;height:30px"
   onclick="document.getElementById('panel').hidden=false">Anmelden</button>
+<button id="btn48151623" class="a" style="left:400px;top:120px;width:100px;height:30px">Weiter</button>
 <div id="panel" hidden>
   <input id="enabled" type="checkbox" class="a" style="left:20px;top:200px;width:20px;height:20px">
   <input id="hid" type="checkbox" style="display:none">

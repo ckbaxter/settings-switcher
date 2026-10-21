@@ -149,3 +149,39 @@ def test_delete_via_ui(live, page):
     page.click("#delete")
     expect(page.locator("#profile-list button")).to_have_count(0)
     assert not (profiles / "weg.json").exists()
+
+
+def test_overview_shows_cards_and_opens_profile(live, page):
+    url, profiles = live
+    good = {"name": "fertig", "description": "Alles da", "base_url": "http://192.168.178.1",
+            "steps": [{"op": "goto", "value": "/"}, {"op": "expect_visible", "selector": "#ok"}]}
+    todo = {"name": "offen", "description": "", "base_url": "http://192.168.178.1",
+            "steps": [{"op": "click", "selector": "TODO: Button"}]}
+    for data in (good, todo):
+        assert httpx.put(f"{url}/api/profiles/{data['name']}", headers={"X-Token": TOKEN}, json=data).status_code == 200
+    page.goto(url)
+    page.fill("#token", TOKEN)
+    page.click("text=Verbinden")
+    expect(page.locator("#overview")).to_be_visible()
+    expect(page.locator("#editor")).to_be_hidden()
+    expect(page.locator("#overview-sub")).to_contain_text("2 Profile")
+    cards = page.locator(".pcard:not(.pcard-new)")
+    expect(cards).to_have_count(2)
+    fertig = cards.filter(has_text="fertig")
+    expect(fertig.locator(".badge")).to_have_text("Bereit")
+    expect(fertig).to_contain_text("2 Schritte")
+    expect(fertig).to_contain_text("Prüft Ergebnis")
+    offen = cards.filter(has_text="offen")
+    expect(offen.locator(".badge")).to_have_text("TODO offen")
+    expect(offen).to_contain_text("Keine Prüfung")
+    expect(offen).to_contain_text("Keine Beschreibung")
+    expect(page.get_by_role("button", name="Aufnehmen")).to_have_count(0)  # ohne Recorder kein Aufnahme-Knopf
+
+    fertig.get_by_role("button", name="Bearbeiten").click()
+    expect(page.locator("#editor")).to_be_visible()
+    expect(page.locator("#overview")).to_be_hidden()
+    assert page.input_value("#f-name") == "fertig"
+    page.click("#to-overview")
+    expect(page.locator("#overview")).to_be_visible()
+    page.locator(".pcard-new").click()
+    expect(page.locator("#editor-title")).to_have_text("Neues Profil")

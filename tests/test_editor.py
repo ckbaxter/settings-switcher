@@ -79,11 +79,31 @@ def test_crud_roundtrip(client, tmp_path):
     assert res.status_code == 200 and res.json() == {"ok": True, "warnings": []}
     assert json.loads((tmp_path / "demo.json").read_text(encoding="utf-8")) == PROFILE
     assert client.get("/api/profiles/demo", headers=H).json() == PROFILE
-    assert client.get("/api/profiles", headers=H).json() == [{"name": "demo", "description": "Demo", "steps": 2}]
+    listing = client.get("/api/profiles", headers=H).json()
+    assert len(listing) == 1 and listing[0].items() >= {"name": "demo", "description": "Demo", "steps": 2}.items()
     assert client.delete("/api/profiles/demo", headers=H).json() == {"ok": True}
     assert client.get("/api/profiles/demo", headers=H).status_code == 404
     assert client.delete("/api/profiles/demo", headers=H).status_code == 404
     assert not list(tmp_path.glob(".tmp-*"))
+
+
+def test_profile_list_reports_check_todo_and_modified(client):
+    ready = {**PROFILE, "name": "fertig", "steps": [{"op": "goto", "value": "/"}, {"op": "expect_visible", "selector": "#ok"}]}
+    todo = {**PROFILE, "name": "offen", "steps": [{"op": "click", "selector": "TODO: Button"}]}
+    for data in (PROFILE, ready, todo):
+        assert client.put(f"/api/profiles/{data['name']}", headers=H, json=data).status_code == 200
+    by_name = {p["name"]: p for p in client.get("/api/profiles", headers=H).json()}
+    assert (by_name["demo"]["check"], by_name["demo"]["todo"]) == (False, False)
+    assert (by_name["fertig"]["check"], by_name["fertig"]["todo"]) == (True, False)
+    assert (by_name["offen"]["check"], by_name["offen"]["todo"]) == (False, True)
+    assert all(p["modified"] > 0 for p in by_name.values())
+
+
+def test_unreadable_profile_is_listed_without_crashing(client, tmp_path):
+    (tmp_path / "kaputt.json").write_text('{"steps": 5}', encoding="utf-8")
+    (tmp_path / "wirr.json").write_text("{nope", encoding="utf-8")
+    by_name = {p["name"]: p for p in client.get("/api/profiles", headers=H).json()}
+    assert by_name["kaputt"]["description"] == by_name["wirr"]["description"] == "(nicht lesbar)"
 
 
 def test_placeholder_profiles_can_be_saved_with_warning(client):

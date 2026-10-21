@@ -403,3 +403,47 @@ def test_aufnahme_ohne_marke_verhaelt_sich_wie_vorher(live, server, page):
     live_click(page, 80, 135)
     wait_steps(page, 2)  # am Ende angehängt
     assert page.locator("#steps .step").nth(1).locator("select").input_value() == "click"
+
+
+# ---------- Selektor-Vorschlag ----------
+
+
+def test_suggest_stable_selector_for_fragile_step(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, [{"op": "goto", "value": "/"}, {"op": "click", "selector": "#btn48151623"}])
+    connect(page, url)
+    page.click("#profile-list button")
+    step = page.locator("#steps .step").nth(1)
+    expect(step.locator(".pill.q-bad")).to_have_text("fragil · generierte ID")
+
+    # Ohne Live-Browser: Hinweis statt Vorschlag
+    step.get_by_role("button", name="Stabileren Selektor vorschlagen").click()
+    expect(step.locator(".suggest")).to_contain_text("Live-Browser")
+    step.get_by_role("button", name="Vorschläge schließen").click()
+    expect(step.locator(".suggest")).to_have_count(0)
+
+    # Mit Live-Browser: Vorschläge treffen genau dieses Element, Übernehmen ersetzt den Selektor
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    step = page.locator("#steps .step").nth(1)
+    step.get_by_role("button", name="Stabileren Selektor vorschlagen").click()
+    option = step.locator(".suggest-option", has_text='role=button[name="Weiter"]')
+    expect(option).to_be_visible()
+    expect(option.locator(".pill")).to_have_text("stabil · Text oder Rolle")
+    option.click()
+    expect(step.locator('input[aria-label="Selektor"]')).to_have_value('role=button[name="Weiter"]')
+    expect(step.get_by_role("button", name="Stabileren Selektor vorschlagen")).to_have_count(0)  # nicht mehr fragil
+    page.click("#rec-stop")
+
+
+def test_suggest_reports_selector_that_does_not_match(live, server, page):
+    url, profiles = live
+    write_profile(profiles, server, [{"op": "goto", "value": "/"}, {"op": "click", "selector": "#gibt-es-nicht2024"}])
+    connect(page, url)
+    page.click("#profile-list button")
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    step = page.locator("#steps .step").nth(1)
+    step.get_by_role("button", name="Stabileren Selektor vorschlagen").click()
+    expect(step.locator(".suggest")).to_contain_text("nicht vor")
+    page.click("#rec-stop")
