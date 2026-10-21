@@ -34,6 +34,23 @@ Container mit neuem Browser und neuem Login, ein halb erledigter Zustand aus dem
   (siehe [Profile](profile.md)). Der Runner weist im Log darauf hin, wenn ein Profil keine `expect_*`-Prüfung hat.
 - Nicht auf einer echten Fritzbox getestet. Die Wiederholung ist durch Tests mit der Docker-Attrappe abgedeckt.
 
+## Editor und Recorder starten und beenden
+
+```bash
+make start recorder       # Editor mit Live-Browser starten, Standard-Adresse http://127.0.0.1:8080
+make stop recorder        # beenden und den Container entfernen
+make start editor         # Editor ohne Browser (stop, build und pull ebenso)
+```
+
+- `recorder` ist die Vorgabe, `make start` allein startet also den Recorder. `make start` entspricht
+  `docker compose --profile record up -d`, `make stop` entspricht `docker compose --profile record down`.
+- Editor und Recorder teilen sich Port und Containernamen, es läuft immer nur einer von beiden. Deshalb nimmt jedes
+  dieser Ziele genau einen Dienst.
+- Fehlt das Image, baut `docker compose` es beim Start selbst (oder holt es, wenn in der `.env` ein Registry-Name
+  steht). Nach einem Update ersetzt `make build recorder` das lokale Image, `make pull recorder` holt das veröffentlichte.
+  Das Runner-Image braucht dafür nichts: `run.sh` baut es selbst.
+- Der Recorder erreicht den Router, deshalb nur bei Bedarf starten und danach `make stop recorder`.
+
 ## Image-Workflow und Registry
 
 Der Workflow [`docker-image.yml`](../.github/workflows/docker-image.yml) baut bei Änderungen an `runner/`, `editor/`,
@@ -63,12 +80,9 @@ Vor dem Bauen prüft der Workflow, dass der Playwright-Pin zum Playwright-Image 
 2. Holen und starten, ohne `--build`:
 
 ```bash
-docker compose --profile record pull        # oder: make pull   (Editor ohne Browser: make pull P=editor)
-docker compose --profile record up -d
+make pull recorder        # oder: docker compose --profile record pull
+make start recorder       # oder: docker compose --profile record up -d
 ```
-
-Editor und Recorder teilen sich Port und Containernamen, deshalb gehören `pull` und `build` immer zu einem
-Profil (`record` oder `editor`), nie zu beiden gleichzeitig.
 
 - Ein neu angelegtes Paket ist zunächst **privat**, auch bei einem öffentlichen Repo. Soll es ohne Anmeldung ladbar sein,
   die Sichtbarkeit in den Paket-Einstellungen auf GitHub ändern. Bei einem privaten Paket einmalig auf dem Docker-Host
