@@ -468,3 +468,29 @@ def test_record_button_says_what_it_does_for_existing_profile(live, server, page
     expect(page.locator("#rec-start")).to_have_text("Schritte anhängen")
     page.click("#new-profile")
     expect(page.locator("#rec-start")).to_have_text("Aufnahme starten")
+
+
+# ---------- Schritte scrollen mit ----------
+
+
+def test_steps_follow_the_replayed_step(live, server, page):
+    url, profiles = live
+    steps = [{"op": "goto", "value": "/"}] + [{"op": "wait_ms", "value": "10", "comment": f"Schritt {n}"} for n in range(2, 41)]
+    write_profile(profiles, server, steps)
+    connect(page, url)
+    page.click("#profile-list button")
+    page.locator("#steps .step").nth(34).locator(".flag").click()  # Marke bei Schritt 35
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    expect(page.locator("#rec-replay")).to_be_hidden()  # Wiedergabe ist durch
+
+    # Der zuletzt abgespielte Schritt liegt im sichtbaren Bereich der mitscrollenden Karte
+    page.wait_for_function(
+        """() => {
+          const card = document.getElementById('steps-card').getBoundingClientRect();
+          const step = document.querySelectorAll('#steps .step')[34].getBoundingClientRect();
+          return step.top >= card.top && step.bottom <= card.bottom;
+        }"""
+    )
+    assert page.evaluate("document.getElementById('steps-card').scrollTop") > 0
+    page.click("#rec-stop")

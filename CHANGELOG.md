@@ -26,6 +26,10 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
   gewählt ist.
 
 ### Geändert
+- Editor: Bei zwei Spalten (ab 901 px Breite, z. B. iPad quer) bleibt die Schrittliste neben dem Live-Browser im Bild und
+  scrollt für sich. Beim Abspielen bis zur Stopmarke und beim Aufzeichnen scrollt sie zum aktuellen Schritt.
+- Editor: Knopf oben rechts schaltet die Darstellung zwischen automatisch (Systemeinstellung), hell und dunkel um. Die
+  Wahl bleibt im Browser gespeichert.
 - Editor: Der Aufnahme-Knopf sagt, was er tut. Bei einem Profil mit Schritten heißt er „Schritte anhängen“, mit gesetzter
   Stopmarke „Ab Stopmarke aufnehmen“, nur bei einem leeren Profil „Aufnahme starten“. Eine Zeile darunter erklärt,
   was passiert. Die Karte in der Profilübersicht beschriftet ihren Knopf genauso.

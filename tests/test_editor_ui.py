@@ -185,3 +185,22 @@ def test_overview_shows_cards_and_opens_profile(live, page):
     expect(page.locator("#overview")).to_be_visible()
     page.locator(".pcard-new").click()
     expect(page.locator("#editor-title")).to_have_text("Neues Profil")
+
+
+def test_theme_toggle_cycles_and_is_remembered(live, page):
+    url, _ = live
+    page.goto(url)
+    root = page.locator("html")
+    toggle = page.locator("#theme-toggle")
+    expect(root).not_to_have_attribute("data-theme", "light")  # automatisch: nichts gesetzt
+    assert page.evaluate("document.documentElement.hasAttribute('data-theme')") is False
+    toggle.click()
+    expect(root).to_have_attribute("data-theme", "light")
+    page.reload()  # bleibt nach dem Neuladen, ohne Aufblitzen (Skript im head)
+    expect(root).to_have_attribute("data-theme", "light")
+    toggle.click()
+    expect(root).to_have_attribute("data-theme", "dark")
+    assert page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(14, 17, 22)"
+    toggle.click()
+    assert page.evaluate("document.documentElement.hasAttribute('data-theme')") is False
+    assert page.evaluate("localStorage.getItem('ss-theme')") is None
