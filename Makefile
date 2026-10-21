@@ -2,12 +2,24 @@
 # Lauf die neue Version übernimmt.
 VERSION = $(shell cat VERSION)
 
-# Editor und Recorder teilen sich Port und Containernamen, es läuft immer nur einer von beiden. Deshalb arbeiten
-# 'build' und 'pull' mit einem docker-compose-Profil: record (Recorder, Standard) oder editor (Editor ohne Browser).
-P ?= record
+# Dienst: Wird hinter dem Ziel angegeben (make start recorder), Standard ist recorder. Editor und Recorder teilen
+# sich Port und Containernamen, es läuft immer nur einer von beiden; start, stop, build und pull arbeiten deshalb
+# mit genau einem Dienst. Die Namen sind leere Ziele, damit make sie als Wort hinter dem Ziel akzeptiert.
+DIENSTE        := recorder editor
+DIENST         := $(or $(filter $(DIENSTE),$(MAKECMDGOALS)),recorder)
+PROFIL_recorder := record
+PROFIL_editor   := editor
+PROFIL          = $(PROFIL_$(DIENST))
+
+define pruefe_dienst
+@[ $(words $(filter $(DIENSTE),$(MAKECMDGOALS))) -le 1 ] \
+	|| { echo "Fehler: Nur ein Dienst angeben (recorder oder editor)"; exit 1; }
+endef
 
 .DEFAULT_GOAL := help
-.PHONY: help version test build pull release
+.PHONY: help version test start stop build pull release $(DIENSTE)
+
+$(DIENSTE): ; @:
 
 # Hilfe: jedes Ziel mit einem "## Text" hinter dem Namen erscheint automatisch in "make help".
 help: ## Diese Hilfe anzeigen
@@ -20,15 +32,18 @@ help: ## Diese Hilfe anzeigen
 	@echo ""
 	@echo "Parameter:"
 	@echo "  V=X.Y.Z                      Version für 'make release' (optional). Ohne V gilt die Datei VERSION."
-	@echo "  P=record|editor              Compose-Profil für 'build' und 'pull' (Standard: record = Editor mit Live-Browser)"
+	@echo "  recorder | editor            Dienst für start, stop, build und pull, hinter dem Ziel angegeben (Standard: recorder)"
+	@echo "                               recorder = Editor mit Live-Browser, editor = Editor ohne Browser"
 	@echo "  SWITCHER_EDITOR_IMAGE        in der .env: Image des Editors (Standard: lokal gebaut, settings-switcher-editor)"
 	@echo "  SWITCHER_RECORDER_IMAGE      in der .env: Image des Recorders (Standard: lokal gebaut, settings-switcher-recorder)"
 	@echo ""
 	@echo "Beispiele:"
 	@echo "  make test                    Tests ausführen"
-	@echo "  make build                   Recorder-Image lokal bauen (P=editor: Editor ohne Browser; das Runner-Image baut run.sh selbst)"
-	@echo "  make pull                    veröffentlichtes Recorder-Image holen (vorher SWITCHER_RECORDER_IMAGE in der .env setzen, docs/betrieb.md)"
-	@echo "  make pull P=editor           veröffentlichtes Editor-Image holen (SWITCHER_EDITOR_IMAGE)"
+	@echo "  make start recorder          Recorder starten (Editor mit Live-Browser; Image wird bei Bedarf gebaut oder geholt)"
+	@echo "  make stop recorder           Recorder beenden und den Container entfernen"
+	@echo "  make start editor            Editor ohne Browser starten (stop und die anderen Ziele ebenso)"
+	@echo "  make build recorder          Image lokal neu bauen (das Runner-Image baut run.sh selbst)"
+	@echo "  make pull recorder           veröffentlichtes Image holen (vorher SWITCHER_RECORDER_IMAGE in der .env setzen, docs/betrieb.md)"
 	@echo "  make release                 Release mit der Version aus der Datei VERSION (Tag vX.Y.Z daraus)"
 	@echo "  make release V=1.1.0         Release 1.1.0: setzt VERSION selbst (Ablauf und Voraussetzungen: docs/betrieb.md)"
 
@@ -39,18 +54,28 @@ version: ## Aktuelle Version aus der Datei VERSION ausgeben
 test: ## Tests ausführen (pytest)
 	python3 -m pytest
 
-# Editor und Recorder werden von docker compose gebaut. Das Runner-Image braucht kein Make-Ziel: run.sh baut es
-# selbst, wenn es fehlt oder sich die Quellen geändert haben (./run.sh --build <profil> erzwingt einen Neubau).
-build: ## Image lokal bauen: make build [P=record|editor] (Standard: record)
-	@case "$(P)" in record|editor) ;; *) echo "Fehler: P muss record oder editor sein (nicht '$(P)')"; exit 1 ;; esac
-	docker compose --profile $(P) build
+# Dienst starten bzw. beenden. Fehlt das Image, baut docker compose es lokal (oder holt es, wenn in der .env ein
+# Registry-Name steht). Nach einem Update vorher 'make build' oder 'make pull'. Port und Token stehen in der .env.
+start: ## Dienst starten: make start [recorder|editor] (Standard: recorder)
+	$(pruefe_dienst)
+	docker compose --profile $(PROFIL) up -d
 
-# Holt das Image, das in der .env unter SWITCHER_RECORDER_IMAGE (P=record) bzw. SWITCHER_EDITOR_IMAGE (P=editor)
-# steht (z. B. ghcr.io/<owner>/settings-switcher-recorder:latest; bei privatem Paket vorher: docker login ghcr.io).
+stop: ## Dienst beenden: make stop [recorder|editor] (Standard: recorder)
+	$(pruefe_dienst)
+	docker compose --profile $(PROFIL) down
+
+# Das Runner-Image braucht kein Make-Ziel: run.sh baut es selbst, wenn es fehlt oder sich die Quellen geändert haben
+# (./run.sh --build <profil> erzwingt einen Neubau).
+build: ## Image lokal bauen: make build [recorder|editor] (Standard: recorder)
+	$(pruefe_dienst)
+	docker compose --profile $(PROFIL) build
+
+# Holt das Image, das in der .env unter SWITCHER_RECORDER_IMAGE bzw. SWITCHER_EDITOR_IMAGE steht
+# (z. B. ghcr.io/<owner>/settings-switcher-recorder:latest; bei privatem Paket vorher: docker login ghcr.io).
 # Ohne diese Variable würde compose den lokalen Namen bei Docker Hub suchen und scheitern.
-pull: ## Image aus der GitHub Container Registry holen: make pull [P=record|editor] (Standard: record)
-	@case "$(P)" in record|editor) ;; *) echo "Fehler: P muss record oder editor sein (nicht '$(P)')"; exit 1 ;; esac
-	docker compose --profile $(P) pull
+pull: ## Image aus der GitHub Container Registry holen: make pull [recorder|editor] (Standard: recorder)
+	$(pruefe_dienst)
+	docker compose --profile $(PROFIL) pull
 
 # Release: prüft die Voraussetzungen, holt vorher mit "git pull --ff-only" den Stand von origin/main,
 # setzt den annotierten Tag vX.Y.Z und pusht Branch und Tag.

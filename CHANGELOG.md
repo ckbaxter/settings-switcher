@@ -6,6 +6,14 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+### Hinzugefügt
+- `make start` und `make stop` starten und beenden den Recorder (Editor mit Live-Browser) oder den Editor ohne Browser:
+  `make start recorder`, `make stop recorder`, `make start editor`. Ohne Angabe gilt der Recorder.
+
+### Geändert
+- `make build` und `make pull` nehmen den Dienst jetzt wie `start` und `stop` hinter dem Ziel (`make pull editor`
+  statt `make pull P=editor`); der Parameter `P` entfällt.
+
 ## [1.0.0] - 2026-10-21
 
 Erste veröffentlichte Version unter dem Namen Settings Switcher.
