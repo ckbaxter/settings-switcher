@@ -206,7 +206,7 @@ def test_screenshots_for_every_step(server, tmp_path):
 
 
 def test_selectors_from_codegen_style_engines(server, tmp_path):
-    """role=- und text=-Selektoren (so übersetzt die README get_by_role/get_by_text) funktionieren."""
+    """role=- und text=-Selektoren (so übersetzt die Doku get_by_role/get_by_text) funktionieren."""
     steps = [
         {"op": "goto", "value": "/"},
         {"op": "click", "selector": 'role=button[name="Anmelden"]'},
