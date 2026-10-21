@@ -26,8 +26,11 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
   gewählt ist.
 
 ### Geändert
-- Editor: Bei zwei Spalten (ab 901 px Breite, z. B. iPad quer) bleibt die Schrittliste neben dem Live-Browser im Bild und
-  scrollt für sich. Beim Abspielen bis zur Stopmarke und beim Aufzeichnen scrollt sie zum aktuellen Schritt.
+- Editor: Bei zwei Spalten (ab 901 px Breite, z. B. iPad quer) stehen Profilkopf, Profilfelder und Live-Browser links in
+  der Breite des Live-Fensters, die Schritte rechts über die ganze Höhe vom oberen Rand an. Die Schrittliste bleibt im Bild
+  und scrollt für sich. Beim Abspielen bis zur Stopmarke und beim Aufzeichnen scrollt sie zum aktuellen Schritt.
+- Editor: Neue Schritte lassen sich oben („Schritt am Anfang“) und unten („Schritt am Ende“) einfügen. Vorher gab es nur
+  einen Knopf, der ans Ende anhängte.
 - Editor: Knopf oben rechts schaltet die Darstellung zwischen automatisch (Systemeinstellung), hell und dunkel um. Die
   Wahl bleibt im Browser gespeichert.
 - Editor: Der Aufnahme-Knopf sagt, was er tut. Bei einem Profil mit Schritten heißt er „Schritte anhängen“, mit gesetzter

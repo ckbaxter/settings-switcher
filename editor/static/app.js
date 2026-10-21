@@ -376,6 +376,7 @@
     $("step-count").textContent = String(steps.length);
     $("tab-count").textContent = String(steps.length);
     $("empty-steps").hidden = steps.length > 0;
+    $("add-step-end").hidden = steps.length === 0;
     $("no-check").hidden = !(steps.length > 0 && !steps.some((s) => s.op.indexOf("expect_") === 0));
   }
 
@@ -912,6 +913,7 @@
     recorderAvailable = !!available;
     $("recorder").hidden = !available;
     $("workspace").classList.toggle("no-rec", !available);
+    $("editor").classList.toggle("no-rec", !available);
     $("tabs").hidden = !available;
     $("mode-tag").hidden = !available;
     if (!available) return;
@@ -1041,10 +1043,16 @@
     if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
     showOverview();
   });
-  $("add-step").addEventListener("click", () => {
-    steps.push({ op: "click", selector: "", value: "", comment: "" });
+  // Oben: neuer Schritt ganz am Anfang. Unten: ans Ende anhängen.
+  function addStep(atStart) {
+    const step = { op: "click", selector: "", value: "", comment: "" };
+    if (atStart) steps.unshift(step);
+    else steps.push(step);
+    scrollTarget = step;
     renderSteps();
-  });
+  }
+  $("add-step").addEventListener("click", () => addStep(true));
+  $("add-step-end").addEventListener("click", () => addStep(false));
   // Hinweis "Keine Prüfung": während der Aufnahme direkt ins Bild klicken, sonst einen Prüfschritt anlegen
   $("add-check").addEventListener("click", () => {
     if (rec.active) {
