@@ -46,8 +46,11 @@ make start editor         # Editor ohne Browser (stop, build und pull ebenso)
   `docker compose --profile record up -d`, `make stop` entspricht `docker compose --profile record down`.
 - Editor und Recorder teilen sich Port und Containernamen, es läuft immer nur einer von beiden. Deshalb nimmt jedes
   dieser Ziele genau einen Dienst.
-- Fehlt das Image, baut `docker compose` es beim Start selbst (oder holt es, wenn in der `.env` ein Registry-Name
-  steht). Nach einem Update ersetzt `make build recorder` das lokale Image, `make pull recorder` holt das veröffentlichte.
+- `start` benutzt das Image, das die `.env` vorgibt: ohne `SWITCHER_RECORDER_IMAGE` / `SWITCHER_EDITOR_IMAGE` das lokal
+  gebaute (`settings-switcher-recorder`, `settings-switcher-editor`), sonst das dort eingetragene Registry-Image. Ein
+  vorhandenes Image wird nicht aktualisiert: nach einem Update vorher `make build recorder` (lokal neu bauen) oder, mit
+  Registry-Namen in der `.env`, `make pull recorder`. Ob `docker compose` ein fehlendes Image selbst baut oder holt, ist hier
+  nicht geprüft; wer sicher gehen will, ruft vorher `build` bzw. `pull` auf.
   Das Runner-Image braucht dafür nichts: `run.sh` baut es selbst.
 - Der Recorder erreicht den Router, deshalb nur bei Bedarf starten und danach `make stop recorder`.
 

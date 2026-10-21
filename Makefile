@@ -39,7 +39,7 @@ help: ## Diese Hilfe anzeigen
 	@echo ""
 	@echo "Beispiele:"
 	@echo "  make test                    Tests ausführen"
-	@echo "  make start recorder          Recorder starten (Editor mit Live-Browser; Image wird bei Bedarf gebaut oder geholt)"
+	@echo "  make start recorder          Recorder starten (Editor mit Live-Browser; nimmt das Image aus der .env, sonst das lokale)"
 	@echo "  make stop recorder           Recorder beenden und den Container entfernen"
 	@echo "  make start editor            Editor ohne Browser starten (stop und die anderen Ziele ebenso)"
 	@echo "  make build recorder          Image lokal neu bauen (das Runner-Image baut run.sh selbst)"
@@ -54,8 +54,9 @@ version: ## Aktuelle Version aus der Datei VERSION ausgeben
 test: ## Tests ausführen (pytest)
 	python3 -m pytest
 
-# Dienst starten bzw. beenden. Fehlt das Image, baut docker compose es lokal (oder holt es, wenn in der .env ein
-# Registry-Name steht). Nach einem Update vorher 'make build' oder 'make pull'. Port und Token stehen in der .env.
+# Dienst starten bzw. beenden. Benutzt wird das Image aus der .env (SWITCHER_*_IMAGE), sonst das lokal gebaute. Ein
+# vorhandenes Image wird nicht aktualisiert: nach einem Update vorher 'make build' oder 'make pull'.
+# Port und Token stehen in der .env.
 start: ## Dienst starten: make start [recorder|editor] (Standard: recorder)
 	$(pruefe_dienst)
 	docker compose --profile $(PROFIL) up -d
