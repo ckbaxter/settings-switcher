@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-21
+
 Erste veröffentlichte Version unter dem Namen Settings Switcher.
 
 ### Funktionen
