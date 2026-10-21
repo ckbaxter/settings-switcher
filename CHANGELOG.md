@@ -11,6 +11,9 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
   `make start recorder`, `make stop recorder`, `make start editor`. Ohne Angabe gilt der Recorder.
 
 ### Geändert
+- `README.md` und `README.de.md` beschreiben das Tool allgemein als Werkzeug für beliebige Weboberflächen; die Fritzbox
+  steht als Anwendungsfall und als getestetes Gerät darin. Neu: Hinweis auf nicht automatisierbare Seiten (CAPTCHA,
+  Einmalcode).
 - `make build` und `make pull` nehmen den Dienst jetzt wie `start` und `stop` hinter dem Ziel (`make pull editor`
   statt `make pull P=editor`); der Parameter `P` entfällt.
 
