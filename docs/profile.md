@@ -34,7 +34,7 @@ siehe unten und [Betrieb](betrieb.md).
 Ein Lauf gilt als erfolgreich, wenn alle Schritte durchlaufen. Ohne `expect_*`-Prüfung heißt das nur,
 dass nichts abgebrochen ist, nicht dass die Änderung wirksam wurde. Ein Schritt, der fehlschlägt, beendet
 den Lauf sofort (Exit 1, Screenshot `…-fehler.png`). Spätere Schritte wie der Logout entfallen dann; die
-Sitzung auf der Fritzbox läuft von selbst ab.
+Sitzung auf dem Gerät läuft von selbst ab.
 
 - Setze die Prüfung **nach dem Übernehmen** und vor den Logout. Sie darf mitten im Ablauf stehen.
 - Ein `expect_*` direkt nach dem Klick prüft nur den Formularzustand im Browser. Verlässlich ist die
@@ -68,12 +68,12 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 | „Prüfen“-Knöpfe, dann auf ein Element klicken | `expect_visible` / `expect_text` / `expect_checked` / `expect_unchecked` / `wait_for` |
 
 4. **Aufnahme beenden**, Schritte prüfen (Reihenfolge, Selektoren, `TODO`-Werte), **Speichern**.
-5. Mit `./run.sh -s <profil>` testen und in der Fritzbox prüfen, ob die Änderung wirklich da ist. Bau nach
+5. Mit `./run.sh -s <profil>` testen und in der Weboberfläche des Geräts prüfen, ob die Änderung wirklich da ist. Bau nach
    dem Übernehmen eine `expect_*`-Prüfung ein (siehe oben), sonst meldet der Lauf Erfolg, ohne etwas zu prüfen.
 
 ### Ab einer Stelle weiter aufzeichnen (Stopmarke)
 
-Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem FRITZ!OS-Update), musst du nicht alles neu aufnehmen:
+Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem Firmware-Update des Geräts), musst du nicht alles neu aufnehmen:
 
 1. Profil öffnen und beim letzten unveränderten Schritt auf **⚑** klicken. Das ist die Stopmarke; ein
    zweiter Klick entfernt sie. Die Marke gibt es nur im Browserfenster, sie steht nicht im Profil.
@@ -103,7 +103,7 @@ Wichtig:
 - Die Schrittliste lebt im Browserfenster und geht beim Neuladen verloren. Vor dem Beenden speichern.
 - Selektoren sind eine Heuristik (ID, `data-testid`, Rolle mit Namen, `name`, Text, zuletzt CSS-Pfad)
   und werden vor dem Eintragen auf Eindeutigkeit geprüft. Kontrolliere sie trotzdem und teste mit `run.sh`.
-- Nach FRITZ!OS-Updates können einzelne Selektoren brechen, dann den betroffenen Schritt neu aufzeichnen.
+- Nach Firmware- oder Software-Updates des Geräts können einzelne Selektoren brechen, dann den betroffenen Schritt neu aufzeichnen.
 - Die Live-Ansicht ist ein Bild (Screenshots, kein Videostream). Das reicht zum Klicken, ist aber nicht flüssig.
 
 **Alternative ohne Live-Browser:** Selektoren mit Playwrights Recorder am eigenen Rechner holen

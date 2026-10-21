@@ -6,6 +6,17 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+### Geändert
+- Dokumentation für Anwender überarbeitet: Neu ist `docs/erste-schritte.md` (Anleitung von der Einrichtung bis zum
+  ersten Lauf). `docs/betrieb.md` hat neue Abschnitte „Aus Zeitplaner oder Hausautomatisierung aufrufen“ und
+  „Aktualisieren“. `docs/sicherheit-und-grenzen.md` beginnt mit einer kurzen Liste „Das solltest du tun“, die
+  Maßnahmentabelle steht als Hintergrund dahinter. `docs/fehlersuche.md` nennt weitere häufige Probleme, und
+  `docs/konfiguration.md` erklärt die beiden Host-Listen vorab in zwei Sätzen. Die Texte sprechen allgemein vom „Gerät“,
+  die Fritzbox bleibt das Beispiel.
+- Der Teil für Entwickler (Image-Workflow, Registry, Dependabot, Releases, Teststand) steht jetzt in
+  `docs/entwicklung.md` und nicht mehr in den Anwenderseiten. Das Makefile verweist dafür auf die neue Seite.
+- README: Abschnitt „Versionierung“ gekürzt, Verweis auf die neuen Seiten.
+
 ## [1.1.1] - 2026-10-21
 
 ### Hinzugefügt

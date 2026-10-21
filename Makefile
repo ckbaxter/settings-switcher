@@ -45,7 +45,7 @@ help: ## Diese Hilfe anzeigen
 	@echo "  make build recorder          Image lokal neu bauen (das Runner-Image baut run.sh selbst)"
 	@echo "  make pull recorder           veröffentlichtes Image holen (vorher SWITCHER_RECORDER_IMAGE in der .env setzen, docs/betrieb.md)"
 	@echo "  make release                 Release mit der Version aus der Datei VERSION (Tag vX.Y.Z daraus)"
-	@echo "  make release V=1.1.0         Release 1.1.0: setzt VERSION selbst (Ablauf und Voraussetzungen: docs/betrieb.md)"
+	@echo "  make release V=1.1.0         Release 1.1.0: setzt VERSION selbst (Ablauf und Voraussetzungen: docs/entwicklung.md)"
 
 version: ## Aktuelle Version aus der Datei VERSION ausgeben
 	@echo $(VERSION)
