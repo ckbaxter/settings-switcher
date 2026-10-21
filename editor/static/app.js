@@ -17,6 +17,9 @@
   let markerStep = null; // Stopmarke: der Schritt, nach dem die Aufnahme weitergehen soll (nur im Browserfenster, nicht im Profil)
   const stepState = new Map(); // Schritt -> "done" | "running" | "paused" (nur während der Wiedergabe bis zur Stopmarke)
   const newSteps = new Set(); // Schritte, die nach der Wiedergabe neu aufgezeichnet wurden
+  const suggestions = new Map(); // Schritt -> { loading } | { options, message } (Selektor-Vorschläge aus dem Live-Browser)
+  let profileList = []; // letzter Stand von /api/profiles, für die Übersicht
+  let recorderAvailable = false;
 
   // Pfade der Symbole (24x24, Linien), eigene Zeichnung statt Fremdbibliothek
   const ICON = {
@@ -178,6 +181,63 @@
         el("span", { class: "pill q-" + q.level, title: "Einschätzung nach Muster, keine Garantie", text: q.text })
       );
     }
+    if (q && q.level === "bad") {
+      const button = el("button", {
+        type: "button",
+        class: "suggest-btn",
+        text: "Stabileren Selektor vorschlagen",
+        title: "Sucht im Live-Browser einen Selektor, der dasselbe Element über Text, Rolle oder Namen trifft",
+      });
+      button.addEventListener("click", () => requestSuggestion(step));
+      slot.appendChild(button);
+    }
+  }
+
+  // Vorschläge brauchen den Live-Browser: Nur dort lässt sich prüfen, dass ein Selektor genau dieses Element trifft.
+  function requestSuggestion(step) {
+    if (!rec.active) {
+      suggestions.set(step, {
+        options: [],
+        message: "Dafür muss der Live-Browser laufen: Aufnahme starten, die Seite mit diesem Element öffnen, dann erneut fragen.",
+      });
+    } else if (!(step.selector || "").trim()) {
+      return;
+    } else {
+      suggestions.set(step, { loading: true });
+      rec.suggestFor = step;
+      send({ t: "suggest", selector: step.selector });
+    }
+    renderSteps();
+  }
+
+  function suggestPanel(step) {
+    const data = suggestions.get(step);
+    if (!data) return null;
+    const close = el("button", { type: "button", "aria-label": "Vorschläge schließen", title: "Schließen" }, [icon(ICON.close, 14)]);
+    close.addEventListener("click", () => {
+      suggestions.delete(step);
+      renderSteps();
+    });
+    const head = el("div", { class: "suggest-head" }, [
+      el("span", { text: data.loading ? "Suche im Live-Browser …" : data.options.length ? "Trifft genau dieses Element:" : data.message }),
+      close,
+    ]);
+    const box = el("div", { class: "suggest", role: "status" }, [head]);
+    (data.options || []).forEach((option) => {
+      const q = selectorQuality({ op: "click", selector: option });
+      const pick = el("button", { type: "button", class: "suggest-option", title: "Diesen Selektor übernehmen" }, [
+        el("code", { text: option }),
+        q ? el("span", { class: "pill q-" + q.level, text: q.text }) : el("span"),
+      ]);
+      pick.addEventListener("click", () => {
+        step.selector = option;
+        suggestions.delete(step);
+        renderSteps();
+        say([{ kind: "ok", text: "Selektor ersetzt. Speichern nicht vergessen." }]);
+      });
+      box.appendChild(pick);
+    });
+    return box;
   }
 
   const VAR_ONLY_RE = /^\$\{(SWITCHER_[A-Z0-9_]+)\}$/;
@@ -296,7 +356,11 @@
       if (newSteps.has(step)) top.appendChild(el("span", { class: "pill st-new", text: "neu" }));
 
       const tile = el("div", { class: "step-icon tint-" + (OP_TINT[step.op] || "neutral") }, [icon(OP_ICON[step.op] || ICON.click, 18)]);
-      const body = el("div", { class: "step-body" }, [top, selector, varSlot, el("div", { class: "step-row" }, [value, comment])]);
+      const body = el("div", { class: "step-body" }, [top, selector]);
+      const panel = suggestPanel(step);
+      if (panel) body.appendChild(panel);
+      body.appendChild(varSlot);
+      body.appendChild(el("div", { class: "step-row" }, [value, comment]));
 
       list.appendChild(
         el("li", { class: "step" + (state ? " state-" + state : "") }, [tile, body, el("div", { class: "tools" }, [flag, up, down, del])])
@@ -337,7 +401,9 @@
 
   function show(profile, fresh) {
     isNew = fresh;
+    $("overview").hidden = true;
     $("editor").hidden = false;
+    suggestions.clear();
     $("editor-title").textContent = fresh ? "Neues Profil" : "Profil: " + profile.name;
     $("f-name").value = profile.name || "";
     $("f-name").readOnly = !fresh;
@@ -367,6 +433,8 @@
       say(apiError(res));
       return;
     }
+    profileList = res.data;
+    if (!$("overview").hidden) renderOverview();
     res.data.forEach((p) => {
       const button = el(
         "button",
@@ -376,6 +444,78 @@
       button.addEventListener("click", () => openProfile(p.name));
       list.appendChild(el("li", {}, [button]));
     });
+  }
+
+  // ---------- Profilübersicht ----------
+
+  function formatChanged(seconds) {
+    if (!seconds) return "Änderungsdatum unbekannt";
+    const when = new Date(seconds * 1000);
+    return "Zuletzt geändert: " + when.toLocaleDateString("de-DE") + ", " + when.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function profileCard(p) {
+    const ready = !p.todo;
+    const edit = el("button", { type: "button", text: "Bearbeiten" });
+    edit.addEventListener("click", () => openProfile(p.name));
+    const actions = [edit];
+    if (recorderAvailable) {
+      const record = el("button", { type: "button", class: "rec-btn", title: "Öffnet das Profil und startet eine Aufnahme. Neue Schritte werden angehängt." }, [
+        el("span", { text: "Aufnehmen" }),
+      ]);
+      record.prepend(icon("M12 4a8 8 0 100 16 8 8 0 000-16zM12 9a3 3 0 100 6 3 3 0 000-6z", 14));
+      record.addEventListener("click", async () => {
+        await openProfile(p.name);
+        if (!$("editor").hidden && !rec.active) startRecording();
+      });
+      actions.push(record);
+    }
+    return el("article", { class: "pcard" }, [
+      el("div", { class: "pcard-top" }, [
+        el("div", {}, [
+          el("h3", { text: p.name }),
+          el("div", { class: "pcard-desc", text: p.description || "Keine Beschreibung" }),
+        ]),
+        el("span", {
+          class: "badge " + (ready ? "ok" : "warn"),
+          title: ready ? "Kein TODO im Profil" : "Der Runner führt Profile mit TODO nicht aus",
+          text: ready ? "Bereit" : "TODO offen",
+        }),
+      ]),
+      el("div", { class: "pcard-chips" }, [
+        el("span", { class: "chip", text: p.steps + (p.steps === 1 ? " Schritt" : " Schritte") }),
+        el("span", { class: "chip " + (p.check ? "ok" : "warn"), text: p.check ? "Prüft Ergebnis" : "Keine Prüfung" }),
+      ]),
+      el("div", { class: "pcard-meta", text: formatChanged(p.modified) }),
+      el("div", { class: "pcard-actions" }, actions),
+    ]);
+  }
+
+  function renderOverview() {
+    const grid = $("overview-grid");
+    grid.replaceChildren();
+    $("overview-sub").textContent =
+      profileList.length + (profileList.length === 1 ? " Profil" : " Profile") + ". Zugangsdaten liegen nur in runner.env, nie im Profil.";
+    profileList.forEach((p) => grid.appendChild(profileCard(p)));
+    const fresh = el("button", { type: "button", class: "pcard pcard-new" }, [
+      el("span", { class: "plus" }, [icon("M12 5v14M5 12h14", 20)]),
+      el("strong", { text: "Neues Profil" }),
+      el("span", { text: "Startet mit einem leeren Ablauf für eine Weboberfläche." }),
+    ]);
+    fresh.addEventListener("click", newProfile);
+    grid.appendChild(fresh);
+  }
+
+  function showOverview() {
+    $("editor").hidden = true;
+    $("overview").hidden = false;
+    renderOverview();
+    document.querySelectorAll("#profile-list .active").forEach((node) => node.classList.remove("active"));
+  }
+
+  function newProfile() {
+    if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
+    show({ name: "", description: "", base_url: "http://", timeout_ms: 15000, steps: [{ op: "goto", value: "/" }] }, true);
   }
 
   async function openProfile(name) {
@@ -414,8 +554,9 @@
     $("editor").hidden = true;
     showConnected(true);
     say([]);
-    await loadList(null);
     await initRecorder();
+    await loadList(null);
+    showOverview();
   }
 
   async function validate() {
@@ -449,15 +590,15 @@
     if (!window.confirm("Profil " + name + " wirklich löschen?")) return;
     const res = await api("DELETE", "/api/profiles/" + encodeURIComponent(name));
     if (!res.ok) return say(apiError(res));
-    $("editor").hidden = true;
-    loadList(null);
+    await loadList(null);
+    showOverview();
   }
 
 
   // ---------- Aufnahme-Modus ----------
   // insert/after: neue Schritte kommen hinter den Schritt "after" (Stopmarke), statt ans Ende.
   // replaySteps: die Schritte, die der Recorder bis zur Marke abspielt (zum Zuordnen von "at").
-  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null };
+  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null };
 
   function note(kind, text) {
     const box = $("rec-note");
@@ -506,6 +647,8 @@
       rec.after = null;
       rec.replaySteps = null;
       markerStep = null; // die Marke gehörte zu dieser Aufnahme
+      suggestions.clear();
+      rec.suggestFor = null;
       stepState.clear();
       newSteps.clear();
       renderSteps();
@@ -619,9 +762,22 @@
       note("warn", "Die Seite zeigte einen Dialog (wird verworfen): " + event.message);
     } else if (event.t === "popup") {
       note("warn", "Ein Popup wurde geschlossen.");
+    } else if (event.t === "suggest") {
+      const step = rec.suggestFor;
+      if (step && suggestions.has(step) && step.selector === event.selector) {
+        suggestions.set(step, { options: event.options || [], message: event.message || "" });
+        rec.suggestFor = null;
+        renderSteps();
+      }
     } else if (event.t === "error") {
       rec.lastError = event.message;
       note("error", event.message);
+      const waiting = rec.suggestFor;
+      if (waiting && suggestions.has(waiting) && suggestions.get(waiting).loading) {
+        suggestions.set(waiting, { options: [], message: event.message });
+        rec.suggestFor = null;
+        renderSteps();
+      }
     } else if (event.t === "select") {
       offerSelect(event);
     } else if (event.t === "closed") {
@@ -700,6 +856,7 @@
   async function initRecorder() {
     const config = await api("GET", "/api/config");
     const available = config.ok && config.data.recorder;
+    recorderAvailable = !!available;
     $("recorder").hidden = !available;
     $("workspace").classList.toggle("no-rec", !available);
     $("tabs").hidden = !available;
@@ -825,9 +982,11 @@
   });
   $("tab-browser").addEventListener("click", () => setTab("browser"));
   $("tab-steps").addEventListener("click", () => setTab("steps"));
-  $("new-profile").addEventListener("click", () => {
+  $("new-profile").addEventListener("click", newProfile);
+  $("overview-new").addEventListener("click", newProfile);
+  $("to-overview").addEventListener("click", () => {
     if (rec.active) return say([{ kind: "warn", text: "Bitte zuerst die Aufnahme beenden." }]);
-    show({ name: "", description: "", base_url: "http://", timeout_ms: 15000, steps: [{ op: "goto", value: "/" }] }, true);
+    showOverview();
   });
   $("add-step").addEventListener("click", () => {
     steps.push({ op: "click", selector: "", value: "", comment: "" });

@@ -14,6 +14,14 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 - Editor: Schrittkarten zeigen eine Einschätzung des Selektors (stabil, mittel, fragil; nach Muster, keine Garantie)
   und `${SWITCHER_…}`-Variablen als Chip. Bei der Wiedergabe bis zur Stopmarke erscheinen die Schritte als
   „abgespielt“, „läuft“ oder „angehalten“, neu aufgezeichnete Schritte als „neu“.
+- Editor: Profilübersicht als Startansicht mit einer Karte je Profil (Name, Beschreibung, Schritte, „Prüft Ergebnis“ oder
+  „Keine Prüfung“, „Bereit“ oder „TODO offen“, Änderungsdatum) und den Knöpfen „Bearbeiten“ und „Aufnehmen“.
+  `GET /api/profiles` liefert dafür zusätzlich `check`, `todo` und `modified`. Zurück zur Übersicht geht es mit dem Pfeil
+  links neben dem Profilnamen.
+- Editor/Recorder: „Stabileren Selektor vorschlagen“ bei Schritten mit fragilem Selektor. Der Live-Browser sucht
+  Selektoren über Text, Rolle, Name oder `data-testid`, die genau dasselbe Element treffen (höchstens drei), und
+  übernimmt den gewählten mit einem Klick. Dafür muss die Aufnahme laufen und die passende Seite offen sein; es wird
+  nichts im Browser verändert und nichts aufgezeichnet (neue Nachricht `suggest` am WebSocket).
 - Recorder: Aufnahmeanzeige mit Zeit, Adressleiste mit Hinweis auf erlaubte Hosts und Banner, wenn eine Prüfung
   gewählt ist.
 

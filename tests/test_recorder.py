@@ -353,3 +353,18 @@ def test_scroll_values_are_clamped_and_validated(server):
     assert ok_events == []
     assert [e["t"] for e in bad_events] == ["error"] * 6
     assert final == [0, 2000]  # ungültige Angaben scrollen nichts
+
+
+def test_stable_alternatives_skip_current_and_css_path():
+    from editor.recorder import selector_candidates, stable_alternatives
+
+    info = {
+        "tag": "button", "type": "", "id": "btn48151623", "name": "", "testid": "", "aria": "", "role": "",
+        "title": "", "hasHref": False, "value": "", "text": "Weiter", "labels": [], "isCheck": False,
+        "cssPath": "body > button",
+    }
+    assert selector_candidates(info)[-1] == "body > button"
+    alternatives = stable_alternatives(info, "#btn48151623")
+    assert 'role=button[name="Weiter"]' in alternatives and 'text="Weiter"' in alternatives
+    assert "body > button" not in alternatives and "#btn48151623" not in alternatives
+    assert 'text="Weiter"' not in stable_alternatives(info, ' text="Weiter" ')

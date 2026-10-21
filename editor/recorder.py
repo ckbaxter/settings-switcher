@@ -34,13 +34,16 @@ KEYS = {"Enter", "Tab", "Escape"}
 PLACEHOLDER_VALUE = "TODO: Wert setzen"
 REPLAY_TIMEOUT_MS = 10_000
 REPLAY_CONTROLS = {"replay_resume", "replay_retry", "replay_stop"}
+SUGGEST_MAX = 3
 
 DESCRIBE_JS = """
 (arg) => {
   const interactive = 'a,button,input,select,textarea,label,summary,[role=button],[role=link],' +
     '[role=checkbox],[role=radio],[role=menuitem],[role=tab],[onclick]';
   let el;
-  if (arg.focused) {
+  if (arg.handle) {
+    el = arg.handle;
+  } else if (arg.focused) {
     el = document.activeElement;
     if (!el || el === document.body || el === document.documentElement) return { none: true };
   } else {
@@ -161,6 +164,11 @@ def selector_candidates(info):
         out.append(f'text="{info["text"]}"')
     out.append(info["cssPath"])
     return out
+
+
+def stable_alternatives(info, current):
+    """Stabilere Kandidaten für dasselbe Element: ohne den bisherigen Selektor und ohne den CSS-Pfad (Notnagel)."""
+    return [c for c in selector_candidates(info)[:-1] if c != current.strip()]
 
 
 async def pick_selector(page, info):
@@ -420,6 +428,49 @@ class Session:
             rp.last_event = None
             self.emit({"t": "replay_done", "at": rp.pos, "total": total})
 
+    async def _suggest(self, msg):
+        """Sucht im Live-Browser stabilere Selektoren für dasselbe Element wie ein vorhandener Schritt.
+
+        Es wird nichts im Browser verändert und nichts aufgezeichnet. Jeder Vorschlag trifft genau dieses Element.
+        """
+        selector = msg.get("selector")
+        if not isinstance(selector, str) or not selector.strip() or len(selector) > MAX_STRING:
+            raise RecorderError("Ungültiger Selektor.")
+        reply = {"t": "suggest", "selector": selector, "options": []}
+        if selector.strip().upper().startswith("TODO"):
+            reply["message"] = "Der Schritt hat noch ein TODO. Erst den Selektor eintragen."
+            return self.emit(reply)
+        loc = self.page.locator(selector)
+        found = await loc.count()
+        if found != 1:
+            where = "kommt auf der aktuellen Seite nicht vor" if found == 0 else f"trifft hier {found} Elemente"
+            reply["message"] = f"Der Selektor {where}. Im Live-Browser die passende Seite öffnen und erneut versuchen."
+            return self.emit(reply)
+        handle = await loc.element_handle()
+        try:
+            info = await self.page.evaluate(DESCRIBE_JS, {"handle": handle})
+            for candidate in stable_alternatives(info, selector):
+                other = self.page.locator(candidate)
+                try:
+                    if await other.count() != 1:
+                        continue
+                    other_handle = await other.element_handle()
+                    try:
+                        if not await handle.evaluate("(a, b) => a === b", other_handle):
+                            continue
+                    finally:
+                        await other_handle.dispose()
+                except Exception:  # noqa: BLE001 - ungültiger Kandidat, nächsten probieren
+                    continue
+                reply["options"].append(candidate)
+                if len(reply["options"]) >= SUGGEST_MAX:
+                    break
+        finally:
+            await handle.dispose()
+        if not reply["options"]:
+            reply["message"] = "Kein stabilerer Selektor gefunden. Das Element hat weder Text, Rolle, Name noch eine feste ID."
+        self.emit(reply)
+
     async def handle(self, msg):
         kind = msg.get("t")
         if kind in REPLAY_CONTROLS:
@@ -443,6 +494,8 @@ class Session:
                     await self._select(msg)
                 elif kind == "scroll":
                     await self._scroll(msg)
+                elif kind == "suggest":
+                    await self._suggest(msg)
         except RecorderError as exc:
             self.emit({"t": "error", "message": str(exc)})
         except Exception as exc:  # noqa: BLE001 - Fehler der Seite sind keine Abstürze des Recorders

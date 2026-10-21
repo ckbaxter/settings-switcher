@@ -178,15 +178,22 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None, allowed_ips=No
                 continue
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
+                steps = data.get("steps", [])
                 result.append(
                     {
                         "name": path.stem,
                         "description": str(data.get("description", "")),
-                        "steps": len(data.get("steps", [])),
+                        "steps": len(steps),
+                        # Für die Übersicht: prüft das Profil ein Ergebnis, steht noch ein TODO drin, wann geändert
+                        "check": any(isinstance(s, dict) and str(s.get("op", "")).startswith("expect_") for s in steps),
+                        "todo": bool(find_placeholders(data)),
+                        "modified": int(path.stat().st_mtime),
                     }
                 )
-            except (OSError, ValueError, AttributeError):
-                result.append({"name": path.stem, "description": "(nicht lesbar)", "steps": 0})
+            except (OSError, ValueError, AttributeError, TypeError):
+                result.append(
+                    {"name": path.stem, "description": "(nicht lesbar)", "steps": 0, "check": False, "todo": False, "modified": 0}
+                )
         return result
 
     @app.get("/api/profiles/{name}", dependencies=[Depends(require_token)])
