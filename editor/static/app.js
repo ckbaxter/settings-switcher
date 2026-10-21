@@ -370,10 +370,38 @@
       }
     });
 
+    updateRecMode();
     $("step-count").textContent = String(steps.length);
     $("tab-count").textContent = String(steps.length);
     $("empty-steps").hidden = steps.length > 0;
     $("no-check").hidden = !(steps.length > 0 && !steps.some((s) => s.op.indexOf("expect_") === 0));
+  }
+
+  // Beschriftung des Aufnahme-Knopfs: Bei einem Profil mit Schritten wird nichts neu aufgenommen, sondern ergänzt.
+  function recMode() {
+    const markerAt = markerStep ? steps.indexOf(markerStep) : -1;
+    if (markerAt >= 0) {
+      return {
+        label: "Ab Stopmarke aufnehmen",
+        hint: "Spielt die ersten " + (markerAt + 1) + " Schritte ab (wird nicht aufgezeichnet) und zeichnet dahinter weiter auf.",
+      };
+    }
+    if (steps.length > 1) {
+      return {
+        label: "Schritte anhängen",
+        hint:
+          "Das Profil hat " + steps.length + " Schritte und bleibt unverändert. Neue Schritte kommen ans Ende. " +
+          "Soll es mitten im Ablauf weitergehen, setze mit ⚑ eine Stopmarke.",
+      };
+    }
+    return { label: "Aufnahme starten", hint: "Der Browser öffnet den Startpfad, jede Aktion wird ein Schritt." };
+  }
+
+  function updateRecMode() {
+    const mode = recMode();
+    $("rec-start-label").textContent = mode.label;
+    $("rec-mode").textContent = mode.hint;
+    $("rec-mode").hidden = rec.active;
   }
 
   function collect() {
@@ -460,9 +488,18 @@
     edit.addEventListener("click", () => openProfile(p.name));
     const actions = [edit];
     if (recorderAvailable) {
-      const record = el("button", { type: "button", class: "rec-btn", title: "Öffnet das Profil und startet eine Aufnahme. Neue Schritte werden angehängt." }, [
-        el("span", { text: "Aufnehmen" }),
-      ]);
+      const extend = p.steps > 1;
+      const record = el(
+        "button",
+        {
+          type: "button",
+          class: "rec-btn",
+          title: extend
+            ? "Öffnet das Profil und startet eine Aufnahme. Die vorhandenen Schritte bleiben, neue kommen ans Ende."
+            : "Öffnet das Profil und startet eine Aufnahme.",
+        },
+        [el("span", { text: extend ? "Schritte anhängen" : "Aufnehmen" })]
+      );
       record.prepend(icon("M12 4a8 8 0 100 16 8 8 0 000-16zM12 9a3 3 0 100 6 3 3 0 000-6z", 14));
       record.addEventListener("click", async () => {
         await openProfile(p.name);
@@ -630,6 +667,7 @@
     $("rec-live").hidden = !active;
     $("rec-placeholder").hidden = active;
     $("rec-pill").hidden = !active;
+    updateRecMode();
     $("rec-path").disabled = active;
     if (active) {
       startTimer();
