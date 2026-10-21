@@ -9,6 +9,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 ## [1.1.0] - 2026-10-21
 
 ### Hinzugefügt
+- Editor: Die Version steht in der Kopfzeile (neben „Recorder“), gelesen aus der Datei `VERSION`. Die Images enthalten die
+  Datei dafür jetzt. Die Version erscheint erst nach dem Verbinden mit dem Token (`GET /api/config` liefert `version`).
 - `make start` und `make stop` starten und beenden den Recorder (Editor mit Live-Browser) oder den Editor ohne Browser:
   `make start recorder`, `make stop recorder`, `make start editor`. Ohne Angabe gilt der Recorder.
 - Editor: Hinweis „Keine Prüfung im Profil“ mit Knopf zum Hinzufügen einer Prüfung (während der Aufnahme direkt ins

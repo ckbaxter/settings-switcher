@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY shared/ ./shared/
 COPY editor/ ./editor/
+# Die Version steht nur in der Datei VERSION; der Editor zeigt sie in der Kopfzeile an.
+COPY VERSION ./VERSION
 
 ENV PYTHONPATH=/app \
     PYTHONDONTWRITEBYTECODE=1 \

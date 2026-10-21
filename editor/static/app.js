@@ -938,6 +938,9 @@
   async function initRecorder() {
     const config = await api("GET", "/api/config");
     const available = config.ok && config.data.recorder;
+    const version = config.ok && config.data.version ? String(config.data.version) : "";
+    $("app-version").textContent = version ? "v" + version : "";
+    $("app-version").hidden = !version;
     recorderAvailable = !!available;
     $("recorder").hidden = !available;
     $("workspace").classList.toggle("no-rec", !available);
