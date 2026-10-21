@@ -47,6 +47,15 @@ def test_api_is_not_cacheable(client):
     assert client.get("/api/profiles", headers=H).headers["cache-control"] == "no-store"
 
 
+def test_ui_files_are_revalidated(client):
+    # Ohne diesen Header mischt der Browser nach einem Update neues HTML mit altem CSS/JS
+    for path in ("/", "/static/app.js", "/static/style.css"):
+        res = client.get(path)
+        assert res.status_code == 200
+        assert res.headers["cache-control"] == "no-cache"
+        assert res.headers.get("etag")
+
+
 def test_bruteforce_is_rate_limited(client):
     codes = [client.get("/api/profiles", headers={"X-Token": f"x{i}"}).status_code for i in range(12)]
     assert codes[:10] == [401] * 10

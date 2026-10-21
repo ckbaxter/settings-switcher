@@ -122,6 +122,10 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None, allowed_ips=No
         response.headers["Referrer-Policy"] = "no-referrer"
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        else:
+            # Oberfläche bei jedem Aufruf neu prüfen lassen (ETag, bei Treffer nur 304): Sonst zeigt der Browser nach
+            # einem Update neues HTML mit altem CSS/JS aus dem Zwischenspeicher.
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
     def check_token(value):

@@ -20,6 +20,11 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 ### Geändert
 - Neue Oberfläche für Editor und Recorder: Live-Browser links, Schritte rechts (auf dem Handy als Tabs), Meldungen als
   Toasts, Dunkelmodus nach Systemeinstellung. Die Seite lädt weiterhin nichts von außen (Systemschrift, eigene Symbole).
+
+### Behoben
+- Nach einem Update konnte der Browser neues HTML mit altem CSS und JavaScript aus dem Zwischenspeicher mischen und die
+  Oberfläche dadurch falsch darstellen. Der Editor liefert die Seite jetzt mit `Cache-Control: no-cache` aus, der
+  Browser fragt bei jedem Aufruf nach (bei unveränderten Dateien nur eine kurze 304-Antwort).
 - `README.md` und `README.de.md` beschreiben das Tool allgemein als Werkzeug für beliebige Weboberflächen; die Fritzbox
   steht als Anwendungsfall und als getestetes Gerät darin. Neu: Hinweis auf nicht automatisierbare Seiten (CAPTCHA,
   Einmalcode).
