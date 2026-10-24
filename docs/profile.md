@@ -30,6 +30,10 @@ siehe unten und [Betrieb](betrieb.md).
 | `select_option` / `press` | `selector`, `value` | Auswahlliste / Taste |
 | `wait_for` / `wait_ms` | `selector` / `value` | Warten auf Element / feste Zeit (ms, max. 30000) |
 | `expect_visible` / `expect_text` / `expect_checked` / `expect_unchecked` | `selector` (, `value`) | Erfolgsprüfung. Schlägt sie fehl, endet der Lauf mit Exit 1 |
+| `if_text` | `value` (, `selector`) | Wenn die Seite diesen Text zeigt, laufen die folgenden Schritte (siehe [Bedingungen](#bedingungen-wenn--sonst)). Mit `selector` wird nur in diesem Bereich gesucht |
+| `if_visible` | `selector` | Wenn dieses Element sichtbar ist, laufen die folgenden Schritte |
+| `else` | – | Sonst-Zweig des Blocks, optional |
+| `end_if` | – | Ende des Wenn-Blocks |
 
 Ein Lauf gilt als erfolgreich, wenn alle Schritte durchlaufen. Ohne `expect_*`-Prüfung heißt das nur,
 dass nichts abgebrochen ist, nicht dass die Änderung wirksam wurde. Ein Schritt, der fehlschlägt, beendet
@@ -47,6 +51,46 @@ Sitzung auf dem Gerät läuft von selbst ab.
   Timeout), aber sauberer, besonders bei häufigen Läufen.
 
 Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
+
+## Bedingungen (wenn / sonst)
+
+Ein Wenn-Block führt Schritte nur aus, wenn die Seite beim Erreichen des Blocks einen bestimmten Zustand hat.
+Der `else`-Teil ist optional:
+
+```json
+{ "op": "if_text", "value": "Freigabe aktiv", "comment": "Bedingung" },
+{ "op": "click", "selector": "#ausschalten" },
+{ "op": "else" },
+{ "op": "click", "selector": "#einschalten" },
+{ "op": "end_if" }
+```
+
+Ohne `else` passiert bei nicht erfüllter Bedingung nichts, der Lauf geht hinter `end_if` weiter:
+
+```json
+{ "op": "if_visible", "selector": "#cookie-hinweis" },
+{ "op": "click", "selector": "#cookie-ok" },
+{ "op": "end_if" }
+```
+
+Regeln:
+
+- `if_text` prüft, ob die Seite den Text sichtbar enthält. Groß-/Kleinschreibung spielt keine Rolle, der Text muss
+  nicht das ganze Element füllen. Mit `selector` wird nur in diesem Bereich gesucht. Versteckter Text zählt nicht.
+  `if_visible` prüft, ob mindestens ein Element zum Selektor sichtbar ist.
+- Die Bedingung wird **sofort** ausgewertet, es wird nicht gewartet. Lädt die Seite noch, setze davor ein `wait_for`
+  oder `wait_ms`, sonst gilt die Bedingung als nicht erfüllt.
+- Ein Block hat genau ein `if_*`, höchstens ein `else` und ein `end_if`. Blöcke lassen sich nicht verschachteln.
+  Ein unvollständiger Block ist ein Profilfehler (Exit 2, es startet kein Browser).
+- In `if_text` und `if_visible` sind keine `${SWITCHER_…}`-Variablen erlaubt.
+- Alle Schritte beider Zweige werden vor dem Lauf geprüft (auch erlaubte Hosts bei `goto`). Ausgeführt wird nur
+  ein Zweig. Schlägt dort ein Schritt fehl, endet der Lauf mit Exit 1. Das Log zeigt, welcher Zweig lief.
+- Eine `expect_*`-Prüfung darf in einem Zweig stehen. Eine Prüfung hinter `end_if` gilt für beide Zweige.
+
+Im Editor legt **Wenn-Block am Ende** die drei Schritte `if_text`, `else` und `end_if` an. Brauchst du das `else`
+nicht, entfernst du es mit ✕. Schritte im Block sind eingerückt. Die Operation lässt sich in der Auswahl auf
+`if_visible` ändern. Aufgezeichnet werden Bedingungen nicht, du trägst Text oder Selektor von Hand ein; die Schritte
+im Zweig kannst du danach wie gewohnt aufnehmen. Die Stopmarke geht nur außerhalb eines Blocks.
 
 ## Ablauf aufzeichnen (Live-Browser im Editor)
 
@@ -73,7 +117,8 @@ Schritte mit `TODO` in `selector` oder `value` führt der Runner nicht aus.
 
 ### Ab einer Stelle weiter aufzeichnen (Stopmarke)
 
-Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem Firmware-Update des Geräts), musst du nicht alles neu aufnehmen:
+Hat sich nur ein Teil des Ablaufs geändert (etwa nach einem Firmware-Update des Geräts), musst du nicht alles neu aufnehmen.
+Beim Abspielen bis zur Marke wertet der Recorder Wenn-Blöcke genauso aus wie der Runner:
 
 1. Profil öffnen und beim letzten unveränderten Schritt auf **⚑** klicken. Das ist die Stopmarke; ein
    zweiter Klick entfernt sie. Die Marke gibt es nur im Browserfenster, sie steht nicht im Profil.

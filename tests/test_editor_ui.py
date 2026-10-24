@@ -296,3 +296,47 @@ def test_version_is_shown_after_connecting(live, page):
     page.fill("#token", TOKEN)
     page.click("text=Verbinden")
     expect(page.locator("#app-version")).to_have_text("v" + version)
+
+
+def test_if_block_button_indents_steps_and_blocks_marker_inside(live, page):
+    url, profiles = live
+    page.goto(url)
+    page.fill("#token", TOKEN)
+    page.click("text=Verbinden")
+    expect(page.locator("#new-profile")).to_be_enabled()
+
+    page.click("#new-profile")
+    page.fill("#f-name", "ui-if")
+    page.fill("#f-base", "http://192.168.178.1")
+    page.click("#add-if")
+    expect(page.locator(".step")).to_have_count(4)  # goto + if_text + else + end_if
+    ops = page.locator(".step select").evaluate_all("els => els.map(e => e.value)")
+    assert ops == ["goto", "if_text", "else", "end_if"]
+
+    # if_text hat ein Textfeld und ein optionales Bereichsfeld
+    cond = page.locator(".step").nth(1)
+    expect(cond.locator('input[aria-label="Wert"]')).to_be_enabled()
+    expect(cond.locator('input[aria-label="Selektor"]')).to_be_enabled()
+    expect(page.locator(".step").nth(2).locator('input[aria-label="Wert"]')).to_be_disabled()
+    cond.locator('input[aria-label="Wert"]').fill("Freigabe aktiv")
+
+    # Ein neuer Schritt wandert vor das else: Er steht im Block und ist eingerückt
+    page.click("#add-step-end")
+    page.locator(".step").nth(4).locator("select").select_option("click")
+    for _ in range(2):
+        page.locator(".step").nth(4 - _).locator('button[aria-label="Nach oben"]').click()
+    ops = page.locator(".step select").evaluate_all("els => els.map(e => e.value)")
+    assert ops == ["goto", "if_text", "click", "else", "end_if"]
+    assert page.locator(".step.in-block").count() == 1
+    page.locator(".step").nth(2).locator('input[aria-label="Selektor"]').fill("#aus")
+
+    # Stopmarke im offenen Block wird abgelehnt, nach end_if ist sie erlaubt
+    page.locator(".step").nth(3).locator("button.flag").click()
+    expect(page.locator("#messages")).to_contain_text("Stopmarke geht nur außerhalb")
+    assert page.locator("button.flag.active").count() == 0
+    page.locator(".step").nth(4).locator("button.flag").click()
+    assert page.locator("button.flag.active").count() == 1
+
+    page.click("#validate")
+    page.wait_for_selector(".msg.ok")
+    assert not page.console_errors

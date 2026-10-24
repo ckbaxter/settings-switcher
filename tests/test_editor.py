@@ -153,6 +153,13 @@ def test_ops_endpoint_lists_no_script_op(client):
     assert "click" in ops and "evaluate" not in ops
 
 
+def test_ops_endpoint_lists_if_ops_with_optional_scope(client):
+    ops = {o["op"]: o for o in client.get("/api/ops", headers=H).json()}
+    assert {"if_text", "if_visible", "else", "end_if"} <= set(ops)
+    assert ops["if_text"]["required"] == ["value"] and ops["if_text"]["optional"] == ["selector"]
+    assert ops["else"]["required"] == [] and ops["click"]["optional"] == []
+
+
 def test_save_without_write_permission_gives_clear_error(client, monkeypatch):
     def denied(*args, **kwargs):
         raise PermissionError(13, "Permission denied")

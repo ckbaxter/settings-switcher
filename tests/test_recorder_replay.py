@@ -94,6 +94,8 @@ def test_label_never_contains_the_fill_value():
 @pytest.mark.parametrize(
     "replay",
     [
+        [{"op": "if_visible", "selector": "#a"}, {"op": "click", "selector": "#a"}],  # Block nicht geschlossen (Stopmarke im Block)
+        [{"op": "else"}],
         [],
         "nicht-liste",
         [{"op": "eval", "value": "alert(1)"}],  # kein freies JavaScript
@@ -360,3 +362,32 @@ def test_reconnecting_viewer_sees_the_paused_replay(tmp_path, server):
             raise AssertionError("Neu verbundenes Fenster hat den Stand der Wiedergabe nicht bekommen")
         finally:
             client.post("/api/rec/stop", headers=H)
+
+
+def test_replay_follows_if_else_blocks_like_the_runner(server):
+    replay = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_visible", "selector": "#panel"},  # vor dem Login nicht sichtbar
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "else"},
+        {"op": "click", "selector": "#login"},
+        {"op": "end_if"},
+        {"op": "if_text", "value": "Übernehmen"},  # nach dem Login sichtbar
+        {"op": "check", "selector": "#enabled"},
+        {"op": "else"},
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "end_if"},
+    ]
+
+    async def scenario(s):
+        seen = []
+        done = await wait_event(s, "replay_done", seen)
+        assert done["at"] == len(replay) and done["total"] == len(replay)
+        # übersprungen: Schritt 3 (then-Zweig, falsch) und Schritt 10 (else-Zweig nach wahrem then)
+        played = [e["index"] for e in seen if e["t"] == "replay"]
+        assert 3 not in played and 10 not in played and 5 in played and 8 in played
+        assert not any(e["t"] == "replay_pause" for e in seen)
+        assert await s.page.is_checked("#enabled")
+        return True
+
+    assert run_replay(server, replay, scenario)

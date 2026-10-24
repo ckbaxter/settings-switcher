@@ -570,6 +570,7 @@ button.add-end:hover { color: var(--text); border-color: var(--accent); }
   border-radius: 12px;
   background: var(--panel);
 }
+.step.in-block { margin-left: 22px; }
 .step.state-running { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .step.state-paused { border-color: var(--warn); }
 
@@ -585,6 +586,7 @@ button.add-end:hover { color: var(--text); border-color: var(--accent); }
 }
 .step-icon.tint-action { background: var(--accent-soft); color: var(--accent); }
 .step-icon.tint-ok { background: var(--ok-soft); color: var(--ok); }
+.step-icon.tint-flow { background: var(--warn-soft); color: var(--warn); }
 
 .step-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .step-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

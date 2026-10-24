@@ -32,7 +32,19 @@ OPS = {
     "expect_text": (("selector", "value"), "Prüfen: Element enthält Text"),
     "expect_checked": (("selector",), "Prüfen: Checkbox ist aktiv"),
     "expect_unchecked": (("selector",), "Prüfen: Checkbox ist nicht aktiv"),
+    "if_text": (("value",), "Wenn die Seite (oder der Bereich im Selektor) diesen Text zeigt, folgen die nächsten Schritte"),
+    "if_visible": (("selector",), "Wenn dieses Element sichtbar ist, folgen die nächsten Schritte"),
+    "else": ((), "Sonst: Schritte bis end_if (optional)"),
+    "end_if": ((), "Ende des Wenn-Blocks"),
 }
+
+# Felder, die eine Operation zusätzlich zu den Pflichtfeldern benutzen darf
+OPTIONAL_FIELDS = {
+    "if_text": ("selector",),
+}
+
+# Wenn-Blöcke: if_text/if_visible ... [else ...] end_if. Keine Verschachtelung.
+IF_OPS = ("if_text", "if_visible")
 
 TOP_KEYS = {"name", "description", "base_url", "timeout_ms", "steps"}
 STEP_KEYS = {"op", "selector", "value", "comment"}
@@ -92,7 +104,62 @@ def validate_profile(data):
 
     for i, step in enumerate(steps, 1):
         errors.extend(_validate_step(i, step))
+    if not errors:
+        errors.extend(_validate_blocks(steps))
     return errors
+
+
+def _validate_blocks(steps):
+    """Wenn-Blöcke müssen vollständig sein: if_* [else] end_if, ohne Verschachtelung."""
+    errors = []
+    open_at = None  # Nummer des offenen if-Schritts
+    seen_else = False
+    for i, step in enumerate(steps, 1):
+        op = step["op"]
+        if op in IF_OPS:
+            if open_at is not None:
+                errors.append(f"Schritt {i} ({op}): Verschachtelte Wenn-Blöcke sind nicht erlaubt (Schritt {open_at} ist noch offen).")
+            else:
+                open_at, seen_else = i, False
+        elif op == "else":
+            if open_at is None:
+                errors.append(f"Schritt {i} (else): steht außerhalb eines Wenn-Blocks.")
+            elif seen_else:
+                errors.append(f"Schritt {i} (else): Der Block von Schritt {open_at} hat schon ein else.")
+            else:
+                seen_else = True
+        elif op == "end_if":
+            if open_at is None:
+                errors.append(f"Schritt {i} (end_if): steht außerhalb eines Wenn-Blocks.")
+            else:
+                open_at = None
+    if open_at is not None:
+        errors.append(f"Schritt {open_at} ({steps[open_at - 1]['op']}): end_if fehlt.")
+    return errors
+
+
+def block_jumps(steps):
+    """Sprungziele (0-basiert) für gültige Wenn-Blöcke.
+
+    Schlüssel ist der Index eines if_*-Schritts: Ziel, wenn die Bedingung nicht zutrifft (erster Schritt nach else, sonst nach end_if).
+    Schlüssel ist der Index eines else-Schritts: Ziel, wenn der Zweig davor gelaufen ist (erster Schritt nach end_if).
+    """
+    jumps = {}
+    open_if = open_else = None
+    for i, step in enumerate(steps):
+        op = step["op"]
+        if op in IF_OPS:
+            open_if, open_else = i, None
+        elif op == "else":
+            open_else = i
+        elif op == "end_if":
+            if open_else is not None:
+                jumps[open_if] = open_else + 1
+                jumps[open_else] = i + 1
+            else:
+                jumps[open_if] = i + 1
+            open_if = open_else = None
+    return jumps
 
 
 def _validate_step(i, step):
@@ -117,8 +184,9 @@ def _validate_step(i, step):
         v = step.get(field)
         if not isinstance(v, str) or not v.strip():
             errors.append(f"{where} ({op}): {field} fehlt.")
+    allowed = required + OPTIONAL_FIELDS.get(op, ())
     for field in ("selector", "value"):
-        if field not in required and step.get(field):
+        if field not in allowed and step.get(field):
             errors.append(f"{where} ({op}): {field} wird bei dieser Operation nicht benutzt.")
 
     value = step.get("value")
@@ -169,3 +237,16 @@ def substitute(value, env):
         return env[var]
 
     return VAR_RE.sub(repl, value)
+
+
+def condition_locator(page, step):
+    """Locator für eine Bedingung (if_text, if_visible): trifft nur sichtbare Elemente.
+
+    Gilt für die sync- und die async-API von Playwright. Die Bedingung gilt, wenn count() > 0 ist.
+    Es wird nicht gewartet: Der Zustand der Seite zählt in diesem Moment.
+    """
+    selector = step.get("selector")
+    if step["op"] == "if_text":
+        scope = page.locator(selector) if selector else page
+        return scope.get_by_text(step["value"]).locator("visible=true")
+    return page.locator(selector).locator("visible=true")
