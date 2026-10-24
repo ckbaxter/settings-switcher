@@ -88,9 +88,9 @@ Regeln:
 - Eine `expect_*`-Prüfung darf in einem Zweig stehen. Eine Prüfung hinter `end_if` gilt für beide Zweige.
 
 Im Editor legt **Wenn-Block am Ende** die drei Schritte `if_text`, `else` und `end_if` an. Brauchst du das `else`
-nicht, entfernst du es mit ✕. Schritte im Block sind eingerückt. Die Operation lässt sich in der Auswahl auf
-`if_visible` ändern. Aufgezeichnet werden Bedingungen nicht, du trägst Text oder Selektor von Hand ein; die Schritte
-im Zweig kannst du danach wie gewohnt aufnehmen. Die Stopmarke geht nur außerhalb eines Blocks.
+nicht, entfernst du es mit ✕. Schritte im Block sind eingerückt, die Operation lässt sich in der Auswahl auf
+`if_visible` ändern. Wie du Bedingungen im Live-Browser per Klick aufnimmst, steht unter
+[Wenn-Block aufzeichnen](#wenn-block-aufzeichnen).
 
 ## Ablauf aufzeichnen (Live-Browser im Editor)
 
@@ -110,10 +110,29 @@ im Zweig kannst du danach wie gewohnt aufnehmen. Die Stopmarke geht nur außerha
 | Enter, Tab, Escape (Tastenknöpfe) | `press` |
 | Scrollen: Mausrad, Wischen im Bild (iPad/Touch) oder die Knöpfe ◀ ▲ ▼ ▶ | kein Schritt, die Seite im Live-Browser scrollt nur |
 | „Prüfen“-Knöpfe, dann auf ein Element klicken | `expect_visible` / `expect_text` / `expect_checked` / `expect_unchecked` / `wait_for` |
+| „Wenn sichtbar“ / „Wenn Text“, dann auf ein Element klicken | `if_visible` / `if_text`, dazu automatisch `end_if` (siehe unten) |
 
 4. **Aufnahme beenden**, Schritte prüfen (Reihenfolge, Selektoren, `TODO`-Werte), **Speichern**.
 5. Mit `./run.sh -s <profil>` testen und in der Weboberfläche des Geräts prüfen, ob die Änderung wirklich da ist. Bau nach
    dem Übernehmen eine `expect_*`-Prüfung ein (siehe oben), sonst meldet der Lauf Erfolg, ohne etwas zu prüfen.
+
+### Wenn-Block aufzeichnen
+
+Bedingungen wählst du im Live-Bild per Klick, die Schritte im Block zeichnest du wie gewohnt auf:
+
+1. Unter **Wenn-Block** auf **Wenn sichtbar** oder **Wenn Text** klicken, dann das Element im Live-Bild anklicken.
+   Der Recorder legt `if_visible` bzw. `if_text` (mit Selektor und dem Text des Elements) und gleich dahinter
+   `end_if` an. Die Bedingung wird dabei nur eingetragen, im Live-Browser passiert nichts.
+2. Alles, was du jetzt aufzeichnest, kommt in den **Wenn-Zweig**, also zwischen Bedingung und `end_if`.
+3. **Sonst-Zweig** legt ein `else` an, ab dann kommen die Schritte dorthin. Bring die Seite im Live-Bild vorher in
+   den Zustand, in dem die Bedingung nicht zutrifft. Das Herstellen wird nicht aufgezeichnet. Das `else` ist
+   optional, ohne den Knopf entsteht keins.
+4. **Block beenden** schließt den Block ab, weitere Schritte kommen hinter `end_if`.
+
+Solange ein Block offen ist, sind die beiden Bedingungs-Knöpfe gesperrt (keine Verschachtelung). Beim `if_text` trägt
+der Recorder den Text des angeklickten Elements samt Selektor als Bereich ein. Soll der Text auf der ganzen Seite
+gesucht werden, lösche den Selektor im Schritt. Eine Stopmarke lässt sich nur außerhalb eines Blocks setzen. Aufnehmen
+direkt in einen bestehenden Zweig geht damit nicht, dafür schiebst du die Schritte mit ↑ und ↓ hinein.
 
 ### Ab einer Stelle weiter aufzeichnen (Stopmarke)
 

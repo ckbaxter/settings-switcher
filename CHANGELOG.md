@@ -12,6 +12,9 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
   anderen Fall. Die Bedingung wird sofort ausgewertet (ohne Warten), Blöcke lassen sich nicht verschachteln, und ein
   unvollständiger Block ist ein Profilfehler (Exit 2). Der Runner zeigt im Log, welcher Zweig lief. Beschrieben in
   `docs/profile.md`.
+- Recorder: Bedingungen lassen sich per Klick aufnehmen. **Wenn sichtbar** und **Wenn Text** legen die Bedingung samt
+  `end_if` an, danach kommen die aufgezeichneten Schritte in den Wenn-Zweig. **Sonst-Zweig** legt das `else` an,
+  **Block beenden** setzt dahinter fort.
 - Editor: Schritte im Wenn-Block sind eingerückt, **Wenn-Block am Ende** legt `if_text`, `else` und `end_if` zusammen
   an, und die Stopmarke lässt sich nur außerhalb eines Blocks setzen. Die Wiedergabe bis zur Stopmarke wertet
   Bedingungen wie der Runner aus. `GET /api/ops` nennt zusätzlich die optionalen Felder (`optional`).

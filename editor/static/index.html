@@ -175,6 +175,20 @@
               <span class="hint">Dann ins Bild klicken.</span>
             </div>
 
+            <div id="rec-if" class="segment-row">
+              <span class="seg-label">Wenn-Block</span>
+              <div class="segment" role="group" aria-label="Bedingung wählen">
+                <button type="button" data-kind="if_visible">Wenn sichtbar</button>
+                <button type="button" data-kind="if_text">Wenn Text</button>
+              </div>
+              <span class="hint">Dann ins Bild klicken. Die nächsten Schritte kommen in den Wenn-Zweig.</span>
+            </div>
+            <div id="rec-if-state" class="rec-bar" role="group" aria-label="Offener Wenn-Block" hidden>
+              <span id="if-state-text"></span>
+              <button type="button" id="if-else" title="Ab hier kommen die Schritte in den Sonst-Zweig (optional)">Sonst-Zweig</button>
+              <button type="button" id="if-end" title="Block abschließen, weitere Schritte kommen hinter end_if">Block beenden</button>
+            </div>
+
             <div id="rec-scroll" class="rec-bar" role="group" aria-label="Seite im Live-Browser scrollen">
               <span class="hint">Scrollen:</span>
               <button type="button" data-scroll="left" aria-label="nach links" title="nach links">◀</button>
