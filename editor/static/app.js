@@ -40,6 +40,7 @@
     flag: "M6 21V4M6 5h12l-2 4 2 4H6",
     warn: "M12 3l10 18H2zM12 10v5M12 18v.5",
     lock: "M5 11h14v9H5zM8 11V8a4 4 0 018 0v3",
+    branch: "M6 3v12M6 15a3 3 0 106 0 3 3 0 10-6 0M18 9V6M18 9a3 3 0 100 6 3 3 0 000-6M9 15h6",
   };
   const OP_ICON = {
     goto: ICON.goto,
@@ -56,8 +57,16 @@
     expect_text: ICON.expect,
     expect_checked: ICON.expect,
     expect_unchecked: ICON.expect,
+    if_text: ICON.branch,
+    if_visible: ICON.branch,
+    else: ICON.branch,
+    end_if: ICON.branch,
   };
   const OP_TINT = {
+    if_text: "flow",
+    if_visible: "flow",
+    else: "flow",
+    end_if: "flow",
     click: "action",
     click_text: "action",
     check: "ok",
@@ -154,7 +163,39 @@
   }
 
   function opSpec(op) {
-    return ops.find((o) => o.op === op) || { op, required: [], description: "" };
+    return ops.find((o) => o.op === op) || { op, required: [], optional: [], description: "" };
+  }
+
+  function usesField(spec, field) {
+    return spec.required.includes(field) || (spec.optional || []).includes(field);
+  }
+
+  const IF_OPS = ["if_text", "if_visible"];
+
+  // Schritte innerhalb eines Wenn-Blocks (zwischen if_* und end_if, ohne die Marker selbst) werden eingerückt
+  function blockDepths(list) {
+    let open = false;
+    return list.map((s) => {
+      if (IF_OPS.includes(s.op)) {
+        open = true;
+        return 0;
+      }
+      if (s.op === "else" || s.op === "end_if") {
+        if (s.op === "end_if") open = false;
+        return 0;
+      }
+      return open ? 1 : 0;
+    });
+  }
+
+  // Ist nach dem Schritt an Position index ein Wenn-Block noch offen? (Dort darf keine Stopmarke stehen.)
+  function blockOpenAfter(index) {
+    let open = false;
+    for (let n = 0; n <= index; n++) {
+      if (IF_OPS.includes(steps[n].op)) open = true;
+      else if (steps[n].op === "end_if") open = false;
+    }
+    return open;
   }
 
   // Einschätzung des Selektors nach Muster (Heuristik, keine Garantie)
@@ -255,10 +296,11 @@
   function renderSteps() {
     const list = $("steps");
     list.replaceChildren();
+    const depths = blockDepths(steps);
     steps.forEach((step, i) => {
       const spec = opSpec(step.op);
-      const needsSelector = spec.required.includes("selector");
-      const needsValue = spec.required.includes("value");
+      const needsSelector = usesField(spec, "selector");
+      const needsValue = usesField(spec, "value");
       const qualitySlot = el("span", { class: "q-slot" });
       const varSlot = el("div", { class: "var-chip", hidden: true });
 
@@ -267,15 +309,15 @@
       select.addEventListener("change", () => {
         step.op = select.value;
         const next = opSpec(step.op);
-        if (!next.required.includes("selector")) step.selector = "";
-        if (!next.required.includes("value")) step.value = "";
+        if (!usesField(next, "selector")) step.selector = "";
+        if (!usesField(next, "value")) step.value = "";
         renderSteps();
       });
 
       const selector = el("input", {
         value: step.selector || "",
         disabled: !needsSelector,
-        placeholder: needsSelector ? "Selektor (CSS/XPath)" : "",
+        placeholder: needsSelector ? (step.op === "if_text" ? "Bereich (optional, sonst ganze Seite)" : "Selektor (CSS/XPath)") : "",
         maxLength: 500,
         "aria-label": "Selektor",
       });
@@ -287,7 +329,7 @@
       const value = el("input", {
         value: step.value || "",
         disabled: !needsValue,
-        placeholder: needsValue ? (step.op === "fill" ? "Wert oder ${SWITCHER_PASSWORD}" : "Wert") : "",
+        placeholder: needsValue ? (step.op === "fill" ? "Wert oder ${SWITCHER_PASSWORD}" : step.op === "if_text" ? "Text auf der Seite" : "Wert") : "",
         maxLength: 500,
         "aria-label": "Wert",
       });
@@ -345,6 +387,9 @@
         [icon(ICON.flag, 16)]
       );
       flag.addEventListener("click", () => {
+        if (!marked && blockOpenAfter(i)) {
+          return say([{ kind: "warn", text: "Die Stopmarke geht nur außerhalb eines Wenn-Blocks, also vor dem if oder nach end_if." }]);
+        }
         markerStep = marked ? null : step;
         renderSteps();
       });
@@ -365,7 +410,11 @@
       body.appendChild(el("div", { class: "step-row" }, [value, comment]));
 
       list.appendChild(
-        el("li", { class: "step" + (state ? " state-" + state : "") }, [tile, body, el("div", { class: "tools" }, [flag, up, down, del])])
+        el("li", { class: "step" + (depths[i] ? " in-block" : "") + (state ? " state-" + state : "") }, [
+          tile,
+          body,
+          el("div", { class: "tools" }, [flag, up, down, del]),
+        ])
       );
       if (marked) {
         list.appendChild(el("li", { class: "marker-line", text: "Stopmarke: bis hier abspielen, ab hier aufzeichnen" }));
@@ -379,6 +428,7 @@
     $("tab-count").textContent = String(steps.length);
     $("empty-steps").hidden = steps.length > 0;
     $("add-step-end").hidden = steps.length === 0;
+    $("add-if").hidden = steps.length === 0;
     $("no-check").hidden = !(steps.length > 0 && !steps.some((s) => s.op.indexOf("expect_") === 0));
   }
 
@@ -1085,6 +1135,20 @@
   }
   $("add-step").addEventListener("click", () => addStep(true));
   $("add-step-end").addEventListener("click", () => addStep(false));
+  // Wenn-Block immer vollständig anlegen: if_text, else, end_if (else bei Bedarf mit ✕ entfernen)
+  $("add-if").addEventListener("click", () => {
+    const first = { op: "if_text", selector: "", value: "", comment: "" };
+    steps.push(first, { op: "else", selector: "", value: "", comment: "" }, { op: "end_if", selector: "", value: "", comment: "" });
+    scrollTarget = first;
+    renderSteps();
+    const inputs = document.querySelectorAll('#steps .step input[aria-label="Wert"]');
+    for (let n = inputs.length - 1; n >= 0; n--) {
+      if (!inputs[n].disabled) {
+        inputs[n].focus();
+        break;
+      }
+    }
+  });
   // Hinweis "Keine Prüfung": während der Aufnahme direkt ins Bild klicken, sonst einen Prüfschritt anlegen
   $("add-check").addEventListener("click", () => {
     if (rec.active) {

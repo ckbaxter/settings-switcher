@@ -6,6 +6,16 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+### Hinzugefügt
+- Bedingungen in Profilen: `if_text` (Seite enthält Text, optional nur in einem Bereich) und `if_visible` (Element ist
+  sichtbar) leiten einen Block ein, der mit `end_if` endet. Ein optionales `else` enthält die Schritte für den
+  anderen Fall. Die Bedingung wird sofort ausgewertet (ohne Warten), Blöcke lassen sich nicht verschachteln, und ein
+  unvollständiger Block ist ein Profilfehler (Exit 2). Der Runner zeigt im Log, welcher Zweig lief. Beschrieben in
+  `docs/profile.md`.
+- Editor: Schritte im Wenn-Block sind eingerückt, **Wenn-Block am Ende** legt `if_text`, `else` und `end_if` zusammen
+  an, und die Stopmarke lässt sich nur außerhalb eines Blocks setzen. Die Wiedergabe bis zur Stopmarke wertet
+  Bedingungen wie der Runner aus. `GET /api/ops` nennt zusätzlich die optionalen Felder (`optional`).
+
 ### Geändert
 - Dokumentation für Anwender überarbeitet: Neu ist `docs/erste-schritte.md` (Anleitung von der Einrichtung bis zum
   ersten Lauf). `docs/betrieb.md` hat neue Abschnitte „Aus Zeitplaner oder Hausautomatisierung aufrufen“ und

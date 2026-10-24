@@ -25,7 +25,15 @@ import time
 from urllib.parse import urlparse
 
 from shared.hosts import is_allowed_url, resolve_url, url_host
-from shared.profile_schema import MAX_STRING, is_plain_path, uses_variable, validate_profile
+from shared.profile_schema import (
+    IF_OPS,
+    MAX_STRING,
+    block_jumps,
+    condition_locator,
+    is_plain_path,
+    uses_variable,
+    validate_profile,
+)
 
 VIEWPORT = {"width": 1280, "height": 800}
 PICK_KINDS = {"expect_visible", "wait_for", "expect_text", "expect_checked", "expect_unchecked"}
@@ -255,11 +263,24 @@ async def replay_step(page, step, base_url):
         raise RecorderError(f"Unbekannte Operation {op}.")
 
 
+async def replay_decide(page, step, index, jumps):
+    """Wenn-Block bei der Wiedergabe: gibt den Index des nächsten Schritts zurück, wie es der Runner tut."""
+    op = step["op"]
+    if op in IF_OPS:
+        if await condition_locator(page, step).count() > 0:
+            return index + 1
+        return jumps[index]
+    if op == "else":
+        return jumps[index]
+    return index + 1  # end_if
+
+
 class Replay:
     """Zustand der Wiedergabe bis zur Stopmarke: pending -> running <-> paused -> done."""
 
     def __init__(self, steps, base_url):
         self.steps = steps
+        self.jumps = block_jumps(steps)
         self.base_url = base_url
         self.pos = 0  # Index des nächsten Schritts. Bei "done": so viele Schritte sind erledigt.
         self.phase = "pending"
@@ -409,12 +430,15 @@ class Session:
                     self.emit(rp.last_event)
                     try:
                         async with self._lock:
-                            await replay_step(self.page, step, rp.base_url)
+                            if step["op"] in IF_OPS or step["op"] in ("else", "end_if"):
+                                rp.pos = await replay_decide(self.page, step, rp.pos, rp.jumps)
+                            else:
+                                await replay_step(self.page, step, rp.base_url)
+                                rp.pos += 1
                     except Exception as exc:  # noqa: BLE001 - Fehler der Seite sind keine Abstürze des Recorders
                         first = (str(exc).strip().splitlines() or [exc.__class__.__name__])[0][:200]
                         action = await self._pause("failed", n, f"Schritt {n} fehlgeschlagen: {first}", True)
                     else:
-                        rp.pos += 1
                         continue
                 else:
                     await self._focus_field(step)

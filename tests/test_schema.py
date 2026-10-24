@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from shared.profile_schema import find_placeholders, substitute, validate_profile
+from shared.profile_schema import block_jumps, find_placeholders, substitute, validate_profile
 
 GOOD = {
     "name": "portfreigabe-an",
@@ -112,3 +112,79 @@ def test_substitute():
         substitute("${HOME}", {"HOME": "/root"})
     with pytest.raises(KeyError):
         substitute("${SWITCHER_PASSWORD}", {"SWITCHER_PASSWORD": ""})
+
+
+# ---------- Wenn-Blöcke ----------
+
+
+def with_steps(*steps):
+    return variant(steps=[{"op": "goto", "value": "/"}, *steps])
+
+
+def test_if_else_block_is_valid():
+    data = with_steps(
+        {"op": "if_text", "value": "aktiv"},
+        {"op": "click", "selector": "#a"},
+        {"op": "else"},
+        {"op": "click", "selector": "#b"},
+        {"op": "end_if"},
+    )
+    assert validate_profile(data) == []
+
+
+def test_else_is_optional_and_if_text_may_have_a_scope():
+    data = with_steps(
+        {"op": "if_text", "selector": "#bereich", "value": "aktiv"},
+        {"op": "click", "selector": "#a"},
+        {"op": "end_if"},
+        {"op": "if_visible", "selector": "#x"},
+        {"op": "end_if"},
+    )
+    assert validate_profile(data) == []
+
+
+@pytest.mark.parametrize(
+    "steps,fragment",
+    [
+        ([{"op": "else"}], "außerhalb"),
+        ([{"op": "end_if"}], "außerhalb"),
+        ([{"op": "if_text", "value": "x"}], "end_if fehlt"),
+        ([{"op": "if_text", "value": "x"}, {"op": "else"}, {"op": "else"}, {"op": "end_if"}], "schon ein else"),
+        ([{"op": "if_text", "value": "x"}, {"op": "if_visible", "selector": "#a"}, {"op": "end_if"}], "Verschachtelte"),
+        ([{"op": "if_text", "value": "x"}, {"op": "end_if"}, {"op": "else"}], "außerhalb"),
+    ],
+)
+def test_broken_blocks_are_rejected(steps, fragment):
+    errors = validate_profile(with_steps(*steps))
+    assert errors and any(fragment in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"op": "if_text"},  # value fehlt
+        {"op": "if_visible"},  # selector fehlt
+        {"op": "if_visible", "selector": "#a", "value": "x"},  # value nicht benutzt
+        {"op": "else", "selector": "#a"},
+        {"op": "end_if", "value": "x"},
+        {"op": "if_text", "value": "${SWITCHER_PASSWORD}"},  # Variablen nur bei fill
+        {"op": "if_text", "value": "x", "selector": "${SWITCHER_USER}"},
+    ],
+)
+def test_bad_condition_fields_are_rejected(step):
+    assert validate_profile(with_steps(step, {"op": "end_if"}))
+
+
+def test_block_jumps():
+    steps = [
+        {"op": "click", "selector": "#0"},
+        {"op": "if_text", "value": "x"},  # 1
+        {"op": "click", "selector": "#2"},
+        {"op": "else"},  # 3
+        {"op": "click", "selector": "#4"},
+        {"op": "end_if"},  # 5
+        {"op": "if_visible", "selector": "#6"},  # 6
+        {"op": "click", "selector": "#7"},
+        {"op": "end_if"},  # 8
+    ]
+    assert block_jumps(steps) == {1: 4, 3: 6, 6: 9}

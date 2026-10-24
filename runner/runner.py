@@ -20,7 +20,10 @@ from pathlib import Path
 from shared.hosts import is_allowed_url, parse_allowed_hosts, resolve_url, url_host
 from shared.profile_schema import (
     DEFAULT_TIMEOUT_MS,
+    IF_OPS,
     NAME_RE,
+    block_jumps,
+    condition_locator,
     find_placeholders,
     substitute,
     uses_variable,
@@ -79,6 +82,11 @@ def preflight(profile, env):
     return errors
 
 
+def condition_holds(page, step):
+    """Wertet eine Bedingung (if_text, if_visible) sofort aus, ohne zu warten."""
+    return condition_locator(page, step).count() > 0
+
+
 def execute(page, step, profile, env, timeout):
     from playwright.sync_api import expect
 
@@ -119,6 +127,18 @@ def execute(page, step, profile, env, timeout):
         raise ValueError(f"Unbekannte Operation {op}")
 
 
+def decide(page, step, index, jumps):
+    """Wenn-Block: gibt (nächster Index, Hinweistext) zurück. Index None = einfach weiter zum nächsten Schritt."""
+    op = step["op"]
+    if op in IF_OPS:
+        if condition_holds(page, step):
+            return index + 1, "zutreffend, Schritte bis else/end_if laufen"
+        return jumps[index], "nicht zutreffend, überspringe bis else/end_if"
+    if op == "else":
+        return jumps[index], "Zweig davor ist gelaufen, überspringe den else-Teil"
+    return None, ""  # end_if: nichts zu tun
+
+
 def short_error(exc):
     text = str(exc).strip().splitlines()
     return (text[0] if text else exc.__class__.__name__)[:300]
@@ -138,6 +158,7 @@ def run_profile(profile, env, artifacts_dir):
     allowed = parse_allowed_hosts(env)
     timeout = profile.get("timeout_ms", DEFAULT_TIMEOUT_MS)
     steps = profile["steps"]
+    jumps = block_jumps(steps)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     all_shots = env.get("SWITCHER_SCREENSHOTS", "") == "all"
     artifacts_dir = Path(artifacts_dir)
@@ -172,18 +193,27 @@ def run_profile(profile, env, artifacts_dir):
         page.set_default_navigation_timeout(timeout)
 
         try:
-            for i, step in enumerate(steps, 1):
+            pos = 0
+            while pos < len(steps):
+                step = steps[pos]
+                i = pos + 1
                 label = f"[{i}/{len(steps)}] {describe_step(step)}"
                 t0 = time.monotonic()
+                note = ""
                 try:
-                    execute(page, step, profile, env, timeout)
+                    if step["op"] in IF_OPS or step["op"] in ("else", "end_if"):
+                        target, note = decide(page, step, pos, jumps)
+                    else:
+                        execute(page, step, profile, env, timeout)
+                        target = None
                 except Exception as exc:  # noqa: BLE001
                     log(f"{label} ... FEHLER: {short_error(exc)}")
                     save_screenshot(page, artifacts_dir / f"{profile['name']}-{stamp}-fehler.png")
                     return EXIT_FAILED
-                log(f"{label} ... ok ({time.monotonic() - t0:.1f}s)")
+                log(f"{label} ... ok ({time.monotonic() - t0:.1f}s)" + (f" [{note}]" if note else ""))
                 if all_shots:
                     save_screenshot(page, artifacts_dir / f"{profile['name']}-{stamp}-{i:02d}.png")
+                pos = target if target is not None else pos + 1
         finally:
             if blocked:
                 log(f"Hinweis: Anfragen an nicht erlaubte Hosts blockiert: {', '.join(sorted(blocked))}")

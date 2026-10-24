@@ -233,3 +233,130 @@ def test_kein_hinweis_wenn_profil_eine_pruefung_hat(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(runner, "run_profile", lambda *a, **k: runner.EXIT_OK)
     assert runner.main(["testlauf"], env_for(tmp_path)) == runner.EXIT_OK
     assert "keine expect_*-Prüfung" not in capsys.readouterr().out
+
+
+# ---------- Wenn-Blöcke ----------
+
+LOGIN_STEPS = [
+    {"op": "goto", "value": "/"},
+    {"op": "fill", "selector": "#pw", "value": "${SWITCHER_PASSWORD}"},
+]
+
+
+def run_blocks(server, tmp_path, capsys, steps):
+    write_profile(tmp_path, make_profile(server, steps))
+    code = runner.main(["testlauf"], env_for(tmp_path))
+    return code, capsys.readouterr().out
+
+
+def test_if_visible_then_branch_and_else_is_skipped(server, tmp_path, capsys):
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_visible", "selector": "#login"},
+        {"op": "click", "selector": "#login"},
+        {"op": "else"},
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "end_if"},
+        {"op": "expect_visible", "selector": "#panel"},
+    ]
+    code, out = run_blocks(server, tmp_path, capsys, steps)
+    assert code == 0, out
+    assert "zutreffend" in out and "überspringe den else-Teil" in out
+    assert "[5/7] click #gibt-es-nicht" not in out
+
+
+def test_if_visible_else_branch(server, tmp_path, capsys):
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_visible", "selector": "#panel"},  # vor dem Login nicht sichtbar
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "else"},
+        {"op": "click", "selector": "#login"},
+        {"op": "end_if"},
+        {"op": "expect_visible", "selector": "#panel"},
+    ]
+    code, out = run_blocks(server, tmp_path, capsys, steps)
+    assert code == 0, out
+    assert "nicht zutreffend" in out
+    assert "[3/7] click #gibt-es-nicht" not in out
+
+
+def test_if_without_else_skips_the_block_when_false(server, tmp_path, capsys):
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_visible", "selector": "#panel"},
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "end_if"},
+        {"op": "click", "selector": "#login"},
+        {"op": "expect_visible", "selector": "#panel"},
+    ]
+    code, out = run_blocks(server, tmp_path, capsys, steps)
+    assert code == 0, out
+    assert "[3/6] click" not in out
+
+
+def test_if_text_matches_visible_text_and_respects_scope(server, tmp_path, capsys):
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "click", "selector": "#login"},
+        {"op": "if_text", "value": "freigabe"},  # Groß-/Kleinschreibung egal
+        {"op": "check", "selector": "#enabled"},
+        {"op": "end_if"},
+        {"op": "if_text", "selector": "#status", "value": "Freigabe"},  # steht nicht im Bereich #status
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "else"},
+        {"op": "click", "selector": "#apply"},
+        {"op": "end_if"},
+        {"op": "expect_checked", "selector": "#enabled"},
+        {"op": "expect_text", "selector": "#status", "value": "gespeichert"},
+    ]
+    code, out = run_blocks(server, tmp_path, capsys, steps)
+    assert code == 0, out
+
+
+def test_hidden_text_does_not_count(server, tmp_path, capsys):
+    # Vor dem Login ist #panel versteckt, "Freigabe" steht aber schon im HTML
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_text", "value": "Freigabe"},
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "end_if"},
+        {"op": "expect_visible", "selector": "#login"},
+    ]
+    code, out = run_blocks(server, tmp_path, capsys, steps)
+    assert code == 0, out
+    assert "nicht zutreffend" in out
+
+
+def test_failure_inside_chosen_branch_exits_1(server, tmp_path, capsys):
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_visible", "selector": "#login"},
+        {"op": "click", "selector": "#gibt-es-nicht"},
+        {"op": "end_if"},
+    ]
+    code, out = run_blocks(server, tmp_path, capsys, steps)
+    assert code == 1
+    assert "FEHLER" in out and list((tmp_path / "artifacts").glob("testlauf-*-fehler.png"))
+
+
+def test_preflight_rejects_broken_block_before_browser(tmp_path, monkeypatch):
+    def boom(*args, **kwargs):
+        raise AssertionError("Browser darf nicht gestartet werden")
+
+    monkeypatch.setattr(runner, "run_profile", boom)
+    steps = [{"op": "goto", "value": "/"}, {"op": "if_visible", "selector": "#a"}]
+    write_profile(tmp_path, make_profile("http://127.0.0.1:1", steps))
+    assert runner.main(["testlauf"], env_for(tmp_path)) == 2
+
+
+def test_preflight_checks_goto_hosts_in_both_branches(tmp_path):
+    steps = [
+        {"op": "if_visible", "selector": "#a"},
+        {"op": "goto", "value": "/ok"},
+        {"op": "else"},
+        {"op": "goto", "value": "http://evil.example/x"},
+        {"op": "end_if"},
+    ]
+    errors = runner.preflight(make_profile("http://127.0.0.1:1", steps), env_for(tmp_path))
+    assert any("außerhalb" in e for e in errors)

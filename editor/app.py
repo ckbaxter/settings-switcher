@@ -31,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 
 from editor.recorder import VIEWPORT, Recorder, RecorderError, stream_frames
 from shared.hosts import parse_allowed_hosts
-from shared.profile_schema import NAME_RE, OPS, find_placeholders, validate_profile
+from shared.profile_schema import NAME_RE, OPS, OPTIONAL_FIELDS, find_placeholders, validate_profile
 
 log = logging.getLogger("uvicorn.error")
 
@@ -178,7 +178,7 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None, allowed_ips=No
     @app.get("/api/ops", dependencies=[Depends(require_token)])
     def ops():
         return [
-            {"op": op, "required": list(spec[0]), "description": spec[1]}
+            {"op": op, "required": list(spec[0]), "optional": list(OPTIONAL_FIELDS.get(op, ())), "description": spec[1]}
             for op, spec in OPS.items()
         ]
 
