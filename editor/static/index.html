@@ -161,6 +161,12 @@
             <div class="viewer">
               <img id="live" alt="Live-Ansicht des Browsers" draggable="false">
               <div id="pick-banner" class="pick-banner" hidden></div>
+              <div id="pause-banner" class="pick-banner pause-banner" hidden>Aufzeichnung pausiert</div>
+            </div>
+
+            <div id="rec-pause-bar" class="rec-bar">
+              <button type="button" id="rec-pause" title="Aktionen im Bild werden ausgeführt, aber nicht als Schritte eingetragen">Aufzeichnung pausieren</button>
+              <span id="rec-pause-text" class="hint">Pausiert: Klicks und Eingaben laufen im Live-Browser, werden aber nicht eingetragen.</span>
             </div>
 
             <div id="rec-picks" class="segment-row">

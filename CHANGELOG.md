@@ -6,6 +6,15 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+### Hinzugefügt
+- Recorder: **Aufzeichnung pausieren**. Im pausierten Zustand laufen Klicks, Eingaben und Tasten im Live-Browser,
+  werden aber nicht als Schritte eingetragen. So lässt sich die Seite in einen anderen Zustand bringen, ohne dass die
+  Bedienung im Profil landet. **Sonst-Zweig** pausiert dafür automatisch, **Weiter aufzeichnen** setzt fort.
+
+### Behoben
+- Doku und Hinweis im Editor zum Sonst-Zweig behaupteten, das Herstellen des Gegenzustands werde nicht aufgezeichnet.
+  Das stimmte bisher nicht, jeder Klick im Live-Bild wurde als Schritt eingetragen. Mit der Pause stimmt die Aussage.
+
 ## [1.2.1] - 2026-10-24
 
 ### Behoben

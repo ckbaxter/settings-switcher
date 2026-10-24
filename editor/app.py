@@ -343,7 +343,7 @@ def create_app(profiles_dir, token, allowed_hosts, recorder=None, allowed_ips=No
             return
 
         recorder.viewer = ws
-        await ws.send_json({"t": "hello", "viewport": VIEWPORT, "url": session.current_url()})
+        await ws.send_json({"t": "hello", "viewport": VIEWPORT, "url": session.current_url(), "paused": session.paused})
         snapshot = session.replay_snapshot()  # wer sich neu verbindet, sieht den Stand der Wiedergabe
         if snapshot is not None:
             await ws.send_json(snapshot)

@@ -299,6 +299,7 @@ class Session:
         self._lock = asyncio.Lock()
         self._blocked = set()
         self.replay = None
+        self.paused = False  # pausiert: Aktionen im Live-Browser laufen, werden aber nicht als Schritt eingetragen
 
     def emit(self, event):
         try:
@@ -350,8 +351,13 @@ class Session:
         """Schritte werden nur aufgezeichnet, solange keine Wiedergabe läuft oder wartet."""
         return self.replay is None or self.replay.phase == "done"
 
+    def set_paused(self, on):
+        if on != self.paused:
+            self.paused = on
+            self.emit({"t": "paused", "on": on})
+
     def step(self, op, selector=None, value=None, comment=None):
-        if not self.recording:
+        if not self.recording or self.paused:
             return
         step = {"op": op}
         if selector:
@@ -506,6 +512,12 @@ class Session:
             if kind != "scroll":  # Mausrad-Ereignisse kommen in Serie, sie werden ohne Meldung verworfen
                 self.emit({"t": "error", "message": "Die Wiedergabe läuft, bitte kurz warten."})
             return
+        if kind == "pause":
+            if not self.recording:
+                self.emit({"t": "error", "message": "Während der Wiedergabe lässt sich die Aufzeichnung nicht pausieren."})
+            else:
+                self.set_paused(msg.get("on") is True)
+            return
         try:
             async with self._lock:
                 if kind == "click":
@@ -558,6 +570,8 @@ class Session:
         if pick is not None:
             if not self.recording:
                 raise RecorderError("Prüfungen lassen sich erst setzen, wenn die Wiedergabe fertig ist.")
+            if self.paused:
+                raise RecorderError("Die Aufzeichnung ist pausiert. Erst „Weiter aufzeichnen“, dann Prüfungen und Bedingungen setzen.")
             await self._pick(pick, info)
             return
 

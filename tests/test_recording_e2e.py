@@ -518,6 +518,14 @@ def test_wenn_block_per_klick_aufnehmen_und_im_runner_ausfuehren(live, server, p
 
     page.click("#if-else")
     expect(page.locator("#rec-if-state")).to_contain_text("Sonst-Zweig")
+    # Der Sonst-Zweig pausiert die Aufzeichnung, damit man die Seite erst in den Gegenzustand bringen kann
+    expect(page.locator("#rec-pause")).to_have_text("Weiter aufzeichnen")
+    wait_steps(page, 5)  # goto, if, click, else, end_if
+    live_click(page, 80, 135)  # Vorbereitung, wird nicht eingetragen
+    page.wait_for_timeout(600)
+    wait_steps(page, 5)
+    page.click("#rec-pause")
+    expect(page.locator("#rec-pause")).to_have_text("Aufzeichnung pausieren")
     live_click(page, 450, 135)  # "Weiter", kommt in den Sonst-Zweig
     wait_steps(page, 6)  # goto, if, click, else, click, end_if
 
@@ -580,3 +588,39 @@ def test_wiedergabe_zeigt_uebersprungene_schritte_nicht_als_abgespielt(live, ser
     expect(pills(4)).to_have_text("abgespielt")
     expect(pills(5)).to_have_text("abgespielt")
     page.click("#rec-stop")
+
+
+def test_aufzeichnung_pausieren_fuehrt_aus_ohne_einzutragen(live, server, page):
+    url, profiles = live
+    connect(page, url)
+    page.click("#new-profile")
+    page.fill("#f-name", "pause")
+    page.fill("#f-base", server)
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    wait_steps(page, 1)
+
+    expect(page.locator("#rec-pause")).to_have_text("Aufzeichnung pausieren")
+    expect(page.locator("#rec-pause-text")).to_be_hidden()
+    page.click("#rec-pause")
+    expect(page.locator("#rec-pause")).to_have_text("Weiter aufzeichnen")
+    expect(page.locator("#rec-pause-text")).to_be_visible()
+    expect(page.locator("#pause-banner")).to_be_visible()  # Einblendung im Live-Bild
+    expect(page.locator('#rec-picks [data-kind="expect_text"]')).to_be_disabled()
+    expect(page.locator('#rec-if [data-kind="if_visible"]')).to_be_disabled()
+
+    live_click(page, 80, 135)  # Anmelden: läuft, aber kein Schritt
+    page.wait_for_timeout(600)
+    wait_steps(page, 1)
+
+    page.click("#rec-pause")
+    expect(page.locator("#rec-pause-text")).to_be_hidden()
+    expect(page.locator("#pause-banner")).to_be_hidden()
+    expect(page.locator('#rec-picks [data-kind="expect_text"]')).to_be_enabled()
+    live_click(page, 30, 210)  # Freigabe: wird eingetragen, das Panel ist dank des pausierten Klicks offen
+    wait_steps(page, 2)
+    ops = page.locator("#steps .step select").evaluate_all("els => els.map(e => e.value)")
+    assert ops == ["goto", "check"]
+
+    page.click("#rec-stop")
+    expect(page.locator("#rec-live")).to_be_hidden()
