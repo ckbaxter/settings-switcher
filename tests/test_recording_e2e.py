@@ -553,3 +553,30 @@ def test_wenn_block_per_klick_aufnehmen_und_im_runner_ausfuehren(live, server, p
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "überspringe den else-Teil" in result.stdout
+
+
+def test_wiedergabe_zeigt_uebersprungene_schritte_nicht_als_abgespielt(live, server, page):
+    url, profiles = live
+    steps = [
+        {"op": "goto", "value": "/"},
+        {"op": "if_visible", "selector": "#panel"},  # vor dem Login nicht sichtbar
+        {"op": "click", "selector": "#gibt-es-nicht"},  # Wenn-Zweig, wird übersprungen
+        {"op": "else"},
+        {"op": "click", "selector": "#login"},
+        {"op": "end_if"},
+    ]
+    write_profile(profiles, server, steps)
+    open_profile(page, url)
+    page.locator("#steps .step").nth(5).locator(".flag").click()  # Marke hinter end_if
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    expect(page.locator("#rec-replay")).to_be_hidden()  # Wiedergabe ist durch
+
+    pills = lambda n: page.locator("#steps .step").nth(n).locator(".pill.st-done, .pill.st-skipped")
+    expect(pills(0)).to_have_text("abgespielt")
+    expect(pills(1)).to_have_text("abgespielt")
+    expect(pills(2)).to_have_text("übersprungen")
+    expect(pills(3)).to_have_text("übersprungen")  # das else selbst wird nicht erreicht, weil der Lauf dahinter einsteigt
+    expect(pills(4)).to_have_text("abgespielt")
+    expect(pills(5)).to_have_text("abgespielt")
+    page.click("#rec-stop")

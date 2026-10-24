@@ -76,7 +76,7 @@
     expect_checked: "ok",
     expect_unchecked: "ok",
   };
-  const STATE_LABEL = { done: "abgespielt", running: "läuft", paused: "angehalten" };
+  const STATE_LABEL = { done: "abgespielt", running: "läuft", paused: "angehalten", skipped: "übersprungen" };
   const PICK_LABEL = {
     expect_text: "Text",
     expect_visible: "Sichtbar",
@@ -730,7 +730,7 @@
   // ---------- Aufnahme-Modus ----------
   // insert/after: neue Schritte kommen hinter den Schritt "after" (Stopmarke), statt ans Ende.
   // replaySteps: die Schritte, die der Recorder bis zur Marke abspielt (zum Zuordnen von "at").
-  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null, block: null };
+  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null, block: null, played: new Set() };
 
   function note(kind, text) {
     const box = $("rec-note");
@@ -780,6 +780,7 @@
       rec.after = null;
       rec.block = null;
       rec.replaySteps = null;
+      rec.played.clear();
       markerStep = null; // die Marke gehörte zu dieser Aufnahme
       suggestions.clear();
       rec.suggestFor = null;
@@ -801,9 +802,10 @@
   // Schrittkarten während der Wiedergabe färben: davor "abgespielt", der aktuelle läuft oder ist angehalten
   function markReplay(index, state) {
     if (!rec.replaySteps) return;
+    rec.played.add(index - 1); // Schritte, die der Recorder wirklich erreicht hat. Der Rest davor wurde übersprungen (Wenn-Block).
     stepState.clear();
     rec.replaySteps.forEach((s, n) => {
-      if (n < index - 1) stepState.set(s, "done");
+      if (n < index - 1) stepState.set(s, rec.played.has(n) ? "done" : "skipped");
       else if (n === index - 1) stepState.set(s, state);
     });
     scrollTarget = rec.replaySteps[index - 1] || null;
@@ -818,7 +820,7 @@
       rec.insert = true;
       stepState.clear();
       rec.replaySteps.forEach((s, n) => {
-        if (n < event.at) stepState.set(s, "done");
+        if (n < event.at) stepState.set(s, rec.played.has(n) ? "done" : "skipped");
       });
       renderSteps();
     }
@@ -1043,6 +1045,7 @@
     const res = await api("POST", "/api/rec/start", body);
     if (!res.ok) return say(apiError(res));
     rec.replaySteps = replaySteps;
+    rec.played.clear();
     rec.insert = false;
     rec.after = null;
     rec.block = null;

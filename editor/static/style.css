@@ -638,6 +638,7 @@ button.suggest-btn:hover { text-decoration: underline; }
 .pill.q-mid { color: var(--accent); background: var(--accent-soft); }
 .pill.q-bad, .pill.q-todo { color: var(--warn); background: var(--warn-soft); }
 .pill.st-done { color: var(--ok); background: var(--ok-soft); }
+.pill.st-skipped { color: var(--muted); background: var(--border); }
 .pill.st-running { color: var(--accent); background: var(--accent-soft); }
 .pill.st-paused { color: var(--warn); background: var(--warn-soft); }
 .pill.st-new { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
