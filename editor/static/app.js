@@ -83,6 +83,8 @@
     expect_checked: "Aktiviert",
     expect_unchecked: "Nicht aktiviert",
     wait_for: "Warten auf",
+    if_visible: "Wenn sichtbar",
+    if_text: "Wenn Text",
   };
 
   function icon(path, size) {
@@ -423,6 +425,7 @@
 
     scrollToTarget();
     updateRecMode();
+    updateIfBar();
     refreshDirty();
     $("step-count").textContent = String(steps.length);
     $("tab-count").textContent = String(steps.length);
@@ -727,7 +730,7 @@
   // ---------- Aufnahme-Modus ----------
   // insert/after: neue Schritte kommen hinter den Schritt "after" (Stopmarke), statt ans Ende.
   // replaySteps: die Schritte, die der Recorder bis zur Marke abspielt (zum Zuordnen von "at").
-  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null };
+  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null, block: null };
 
   function note(kind, text) {
     const box = $("rec-note");
@@ -775,6 +778,7 @@
       $("rec-replay").hidden = true;
       rec.insert = false;
       rec.after = null;
+      rec.block = null;
       rec.replaySteps = null;
       markerStep = null; // die Marke gehörte zu dieser Aufnahme
       suggestions.clear();
@@ -823,14 +827,91 @@
     note("ok", "Wiedergabe beendet. Jetzt wird aufgezeichnet, neue Schritte kommen " + where + ".");
   }
 
+  // Wenn-Block während der Aufnahme: Die Bedingung legt if_*, end_if an. Die folgenden Schritte kommen dazwischen.
+  function emptyStep(op) {
+    return { op, selector: "", value: "", comment: "" };
+  }
+
+  function blockAlive() {
+    const b = rec.block;
+    return !!b && steps.includes(b.cond) && steps.includes(b.end) && (!b.otherwise || steps.includes(b.otherwise));
+  }
+
+  function addConditionBlock(cond) {
+    if (rec.block && blockAlive()) {
+      return note("warn", "Wenn-Blöcke lassen sich nicht verschachteln. Beende zuerst den offenen Block.");
+    }
+    const end = emptyStep("end_if");
+    const at = rec.insert && rec.after ? steps.indexOf(rec.after) : -1;
+    if (rec.insert && rec.after && at < 0) rec.insert = false; // der Bezugsschritt wurde entfernt: ans Ende
+    if (rec.insert) {
+      steps.splice(at + 1, 0, cond, end);
+      newSteps.add(cond);
+      newSteps.add(end);
+    } else {
+      steps.push(cond, end);
+    }
+    rec.insert = true;
+    rec.after = cond; // die nächsten Schritte kommen hinter die Bedingung, also in den Wenn-Zweig
+    rec.block = { cond, end, otherwise: null, branch: "then" };
+    scrollTarget = cond;
+    renderSteps();
+    note("ok", "Wenn-Block angelegt. Was du jetzt aufzeichnest, läuft nur, wenn die Bedingung zutrifft.");
+  }
+
+  function startElseBranch() {
+    if (!blockAlive()) return;
+    const b = rec.block;
+    if (!b.otherwise) {
+      b.otherwise = emptyStep("else");
+      steps.splice(steps.indexOf(b.end), 0, b.otherwise);
+      newSteps.add(b.otherwise);
+    }
+    b.branch = "else";
+    rec.insert = true;
+    rec.after = steps[steps.indexOf(b.end) - 1]; // ans Ende des Sonst-Zweigs
+    scrollTarget = b.otherwise;
+    renderSteps();
+    note(
+      "ok",
+      "Sonst-Zweig: Bringe die Seite im Live-Bild in den Zustand, in dem die Bedingung nicht zutrifft (das wird nicht aufgezeichnet). " +
+        "Was du jetzt aufzeichnest, läuft nur in diesem Fall."
+    );
+  }
+
+  function endBlock() {
+    if (blockAlive()) {
+      rec.insert = true;
+      rec.after = rec.block.end;
+      scrollTarget = rec.block.end;
+    }
+    rec.block = null;
+    renderSteps();
+    note("ok", "Wenn-Block beendet. Neue Schritte kommen hinter end_if.");
+  }
+
+  function updateIfBar() {
+    if (rec.block && !blockAlive()) rec.block = null;
+    const b = rec.block;
+    $("rec-if-state").hidden = !(rec.active && b);
+    if (b) {
+      $("if-state-text").textContent = "Aufnahme im " + (b.branch === "else" ? "Sonst-Zweig" : "Wenn-Zweig");
+      $("if-else").hidden = b.branch === "else";
+    }
+    document.querySelectorAll("#rec-if button[data-kind]").forEach((btn) => (btn.disabled = !!b)); // keine Verschachtelung
+  }
+  $("if-else").addEventListener("click", startElseBranch);
+  $("if-end").addEventListener("click", endBlock);
+
   function setPick(kind) {
     rec.pick = kind;
-    document.querySelectorAll("#rec-picks button").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
+    document.querySelectorAll("#rec-picks button, #rec-if button[data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
     const banner = $("pick-banner");
     banner.hidden = !kind;
     if (kind) {
       const label = PICK_LABEL[kind] || kind;
-      banner.textContent = (kind === "wait_for" ? label : "Prüfung „" + label + "“") + ": Element im Bild anklicken";
+      const what = kind === "wait_for" ? label : kind.indexOf("if_") === 0 ? "Bedingung „" + label + "“" : "Prüfung „" + label + "“";
+      banner.textContent = what + ": Element im Bild anklicken";
     }
   }
 
@@ -866,6 +947,7 @@
       $("rec-url").textContent = event.url || "";
     } else if (event.t === "step") {
       const added = { op: event.step.op, selector: event.step.selector || "", value: event.step.value || "", comment: event.step.comment || "" };
+      if (IF_OPS.includes(added.op)) return addConditionBlock(added);
       const at = rec.insert && rec.after ? steps.indexOf(rec.after) : -1;
       if (rec.insert && rec.after && at < 0) rec.insert = false; // der Bezugsschritt wurde entfernt: ans Ende
       if (rec.insert) {
@@ -963,6 +1045,7 @@
     rec.replaySteps = replaySteps;
     rec.insert = false;
     rec.after = null;
+    rec.block = null;
     stepState.clear();
     newSteps.clear();
     if (!replaySteps) {
@@ -1091,7 +1174,7 @@
   }
   $("live").addEventListener("pointerup", endSwipe);
   $("live").addEventListener("pointercancel", endSwipe);
-  document.querySelectorAll("#rec-picks button").forEach((button) =>
+  document.querySelectorAll("#rec-picks button, #rec-if button[data-kind]").forEach((button) =>
     button.addEventListener("click", () => setPick(rec.pick === button.dataset.kind ? null : button.dataset.kind))
   );
   document.querySelectorAll("#rec-text-form [data-key]").forEach((button) =>

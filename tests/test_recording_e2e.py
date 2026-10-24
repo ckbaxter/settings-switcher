@@ -494,3 +494,62 @@ def test_steps_follow_the_replayed_step(live, server, page):
     )
     assert page.evaluate("document.getElementById('steps-card').scrollTop") > 0
     page.click("#rec-stop")
+
+
+def test_wenn_block_per_klick_aufnehmen_und_im_runner_ausfuehren(live, server, page, tmp_path):
+    url, profiles = live
+    connect(page, url)
+    page.click("#new-profile")
+    page.fill("#f-name", "wenn-block")
+    page.fill("#f-base", server)
+    page.click("#rec-start")
+    expect(page.locator("#rec-live")).to_be_visible()
+    wait_steps(page, 1)  # goto /
+
+    # Bedingung per Klick wählen: Das Element "Anmelden" ist sichtbar
+    page.click('#rec-if [data-kind="if_visible"]')
+    live_click(page, 80, 135)
+    wait_steps(page, 3)  # goto, if_visible, end_if
+    expect(page.locator("#rec-if-state")).to_be_visible()
+    expect(page.locator('#rec-if [data-kind="if_text"]')).to_be_disabled()  # keine Verschachtelung
+
+    live_click(page, 80, 135)  # Anmelden, kommt in den Wenn-Zweig
+    wait_steps(page, 4)
+
+    page.click("#if-else")
+    expect(page.locator("#rec-if-state")).to_contain_text("Sonst-Zweig")
+    live_click(page, 450, 135)  # "Weiter", kommt in den Sonst-Zweig
+    wait_steps(page, 6)  # goto, if, click, else, click, end_if
+
+    page.click("#if-end")
+    expect(page.locator("#rec-if-state")).to_be_hidden()
+    live_click(page, 30, 210)  # Freigabe aktivieren, kommt hinter end_if
+    wait_steps(page, 7)
+
+    page.click("#rec-stop")
+    expect(page.locator("#rec-live")).to_be_hidden()
+    ops = page.locator("#steps .step select").evaluate_all("els => els.map(e => e.value)")
+    assert ops == ["goto", "if_visible", "click", "else", "click", "end_if", "check"]
+    assert page.locator("#steps .step.in-block").count() == 2
+
+    page.click("#save")
+    expect(page.locator("#messages")).to_contain_text("Gespeichert")
+    saved = json.loads((profiles / "wenn-block.json").read_text(encoding="utf-8"))
+    assert [(st["op"], st.get("selector")) for st in saved["steps"]][1:3] == [("if_visible", "#login"), ("click", "#login")]
+
+    # Der Runner nimmt den Wenn-Zweig und überspringt den Sonst-Zweig
+    (tmp_path / "artifacts").mkdir()
+    env = {
+        "SWITCHER_PROFILES_DIR": str(profiles),
+        "SWITCHER_ARTIFACTS_DIR": str(tmp_path / "artifacts"),
+        "SWITCHER_ALLOWED_HOSTS": "127.0.0.1",
+    }
+    result = subprocess.run(
+        [sys.executable, "runner/runner.py", "wenn-block"],
+        env={**os.environ, **env, "PYTHONPATH": "."},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "überspringe den else-Teil" in result.stdout

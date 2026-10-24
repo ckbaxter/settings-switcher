@@ -36,7 +36,7 @@ from shared.profile_schema import (
 )
 
 VIEWPORT = {"width": 1280, "height": 800}
-PICK_KINDS = {"expect_visible", "wait_for", "expect_text", "expect_checked", "expect_unchecked"}
+PICK_KINDS = {"expect_visible", "wait_for", "expect_text", "expect_checked", "expect_unchecked", "if_visible", "if_text"}
 TEXT_MODES = {"auto", "user", "password", "literal"}
 KEYS = {"Enter", "Tab", "Escape"}
 PLACEHOLDER_VALUE = "TODO: Wert setzen"
@@ -584,7 +584,7 @@ class Session:
         if kind in ("expect_checked", "expect_unchecked") and not info["isCheck"]:
             raise RecorderError("Das ist kein Kontrollkästchen.")
         selector = await pick_selector(self.page, info)
-        if kind == "expect_text":
+        if kind in ("expect_text", "if_text"):
             text = info["text"] or info["value"]
             if not text:
                 raise RecorderError("Das Element hat keinen Text.")

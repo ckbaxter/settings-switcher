@@ -204,6 +204,24 @@ def test_pick_checks(server):
     assert len([e for e in events if e["t"] == "error"]) == 2
 
 
+def test_pick_conditions(server):
+    async def scenario(s):
+        await click(s, 80, 135)
+        await click(s, 260, 215)  # Übernehmen setzt Status
+        drain(s)
+        await click(s, 250, 250, pick="if_text")
+        await click(s, 260, 215, pick="if_visible")
+        await click(s, 3005, 3005, pick="if_text")  # kein Element im sichtbaren Bild
+        return drain(s)
+
+    events = run_session(server, scenario)
+    ops = [(st["op"], st.get("selector"), st.get("value")) for st in steps_of(events)]
+    assert ops == [
+        ("if_text", "#status", "gespeichert"),
+        ("if_visible", 'role=button[name="Übernehmen"]', None),
+    ]
+
+
 def test_invalid_input_is_rejected(server):
     async def scenario(s):
         await s.handle({"t": "click", "x": -1, "y": 5})
