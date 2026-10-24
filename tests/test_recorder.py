@@ -222,6 +222,32 @@ def test_pick_conditions(server):
     ]
 
 
+def test_pause_runs_actions_but_records_nothing(server):
+    async def scenario(s):
+        await s.handle({"t": "pause", "on": True})
+        await click(s, 80, 135)  # Anmelden: läuft im Browser, kein Schritt
+        await click(s, 30, 210)  # Freigabe aktivieren
+        panel_open = await s.page.is_visible("#enabled")
+        checked = await s.page.is_checked("#enabled")
+        await click(s, 250, 250, pick="expect_text")  # Prüfungen gehen bei Pause nicht
+        events_paused = drain(s)
+
+        await s.handle({"t": "pause", "on": False})
+        await click(s, 260, 215)  # Übernehmen wird wieder aufgezeichnet
+        events_after = drain(s)
+        await s.handle({"t": "pause", "on": "ja"})  # nur echtes true schaltet ein
+        return panel_open, checked, events_paused, events_after, s.paused
+
+    panel_open, checked, events_paused, events_after, paused = run_session(server, scenario)
+    assert panel_open and checked  # die Aktionen wurden ausgeführt
+    assert steps_of(events_paused) == []
+    assert [e for e in events_paused if e["t"] == "paused"] == [{"t": "paused", "on": True}]
+    assert any(e["t"] == "error" and "pausiert" in e["message"] for e in events_paused)
+    assert [e for e in events_after if e["t"] == "paused"] == [{"t": "paused", "on": False}]
+    assert [st["op"] for st in steps_of(events_after)] == ["click"]
+    assert paused is False
+
+
 def test_invalid_input_is_rejected(server):
     async def scenario(s):
         await s.handle({"t": "click", "x": -1, "y": 5})

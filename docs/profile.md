@@ -116,6 +116,15 @@ nicht, entfernst du es mit ✕. Schritte im Block sind eingerückt, die Operatio
 5. Mit `./run.sh -s <profil>` testen und in der Weboberfläche des Geräts prüfen, ob die Änderung wirklich da ist. Bau nach
    dem Übernehmen eine `expect_*`-Prüfung ein (siehe oben), sonst meldet der Lauf Erfolg, ohne etwas zu prüfen.
 
+### Aufzeichnung pausieren
+
+**Aufzeichnung pausieren** (über dem Live-Bild) führt Klicks, Eingaben und Tasten weiter im Live-Browser aus, trägt sie aber
+nicht als Schritte ein. Damit bringst du die Seite in einen anderen Zustand, ohne dass die Bedienung im Profil landet.
+Ein zweiter Klick (**Weiter aufzeichnen**) setzt die Aufnahme fort. Solange pausiert ist, sind die Knöpfe für
+Prüfungen und Bedingungen gesperrt. Ohne Pause trägt der Recorder jede Aktion im Live-Bild ein, nur Scrollen und das
+Setzen des Fokus in ein Textfeld erzeugen keinen Schritt. Während der Wiedergabe bis zur Stopmarke lässt sich nicht
+pausieren.
+
 ### Wenn-Block aufzeichnen
 
 Bedingungen wählst du im Live-Bild per Klick, die Schritte im Block zeichnest du wie gewohnt auf:
@@ -124,9 +133,9 @@ Bedingungen wählst du im Live-Bild per Klick, die Schritte im Block zeichnest d
    Der Recorder legt `if_visible` bzw. `if_text` (mit Selektor und dem Text des Elements) und gleich dahinter
    `end_if` an. Die Bedingung wird dabei nur eingetragen, im Live-Browser passiert nichts.
 2. Alles, was du jetzt aufzeichnest, kommt in den **Wenn-Zweig**, also zwischen Bedingung und `end_if`.
-3. **Sonst-Zweig** legt ein `else` an, ab dann kommen die Schritte dorthin. Bring die Seite im Live-Bild vorher in
-   den Zustand, in dem die Bedingung nicht zutrifft. Das Herstellen wird nicht aufgezeichnet. Das `else` ist
-   optional, ohne den Knopf entsteht keins.
+3. **Sonst-Zweig** legt ein `else` an und **pausiert die Aufzeichnung**. Bring die Seite im Live-Bild in den Zustand,
+   in dem die Bedingung nicht zutrifft; das wird nicht eingetragen. Dann auf **Weiter aufzeichnen** klicken, ab da
+   kommen die Schritte in den Sonst-Zweig. Das `else` ist optional, ohne den Knopf entsteht keins.
 4. **Block beenden** schließt den Block ab, weitere Schritte kommen hinter `end_if`.
 
 Solange ein Block offen ist, sind die beiden Bedingungs-Knöpfe gesperrt (keine Verschachtelung). Beim `if_text` trägt

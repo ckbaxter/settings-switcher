@@ -730,7 +730,7 @@
   // ---------- Aufnahme-Modus ----------
   // insert/after: neue Schritte kommen hinter den Schritt "after" (Stopmarke), statt ans Ende.
   // replaySteps: die Schritte, die der Recorder bis zur Marke abspielt (zum Zuordnen von "at").
-  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null, block: null, played: new Set() };
+  const rec = { ws: null, active: false, viewport: { width: 1280, height: 800 }, pick: null, frame: null, insert: false, after: null, replaySteps: null, suggestFor: null, block: null, played: new Set(), paused: false };
 
   function note(kind, text) {
     const box = $("rec-note");
@@ -781,6 +781,7 @@
       rec.block = null;
       rec.replaySteps = null;
       rec.played.clear();
+      applyPaused(false);
       markerStep = null; // die Marke gehörte zu dieser Aufnahme
       suggestions.clear();
       rec.suggestFor = null;
@@ -874,10 +875,11 @@
     rec.after = steps[steps.indexOf(b.end) - 1]; // ans Ende des Sonst-Zweigs
     scrollTarget = b.otherwise;
     renderSteps();
+    send({ t: "pause", on: true });
     note(
       "ok",
-      "Sonst-Zweig: Bringe die Seite im Live-Bild in den Zustand, in dem die Bedingung nicht zutrifft (das wird nicht aufgezeichnet). " +
-        "Was du jetzt aufzeichnest, läuft nur in diesem Fall."
+      "Sonst-Zweig angelegt, die Aufzeichnung ist pausiert. Bringe die Seite im Live-Bild in den Zustand, in dem die Bedingung " +
+        "nicht zutrifft (wird nicht eingetragen), und klicke dann auf „Weiter aufzeichnen“. Danach landen die Schritte im Sonst-Zweig."
     );
   }
 
@@ -892,6 +894,24 @@
     note("ok", "Wenn-Block beendet. Neue Schritte kommen hinter end_if.");
   }
 
+  // Aufzeichnung pausieren: Der Server ist die Quelle, die Anzeige folgt seinem Ereignis "paused".
+  function updatePickButtons() {
+    document.querySelectorAll("#rec-picks button").forEach((b) => (b.disabled = rec.paused));
+    document.querySelectorAll("#rec-if button[data-kind]").forEach((b) => (b.disabled = rec.paused || !!rec.block));
+  }
+
+  function applyPaused(on) {
+    rec.paused = !!on;
+    $("rec-pause").textContent = rec.paused ? "Weiter aufzeichnen" : "Aufzeichnung pausieren";
+    $("rec-pause").classList.toggle("active", rec.paused);
+    $("rec-pause").setAttribute("aria-pressed", rec.paused ? "true" : "false");
+    $("rec-pause-text").hidden = !rec.paused;
+    $("pause-banner").hidden = !rec.paused;
+    if (rec.paused) setPick(null);
+    updatePickButtons();
+  }
+  $("rec-pause").addEventListener("click", () => send({ t: "pause", on: !rec.paused }));
+
   function updateIfBar() {
     if (rec.block && !blockAlive()) rec.block = null;
     const b = rec.block;
@@ -900,7 +920,7 @@
       $("if-state-text").textContent = "Aufnahme im " + (b.branch === "else" ? "Sonst-Zweig" : "Wenn-Zweig");
       $("if-else").hidden = b.branch === "else";
     }
-    document.querySelectorAll("#rec-if button[data-kind]").forEach((btn) => (btn.disabled = !!b)); // keine Verschachtelung
+    updatePickButtons(); // während ein Block offen ist, sind die Bedingungs-Knöpfe gesperrt (keine Verschachtelung)
   }
   $("if-else").addEventListener("click", startElseBranch);
   $("if-end").addEventListener("click", endBlock);
@@ -947,6 +967,9 @@
       rec.viewport = event.viewport;
       showViewportSize();
       $("rec-url").textContent = event.url || "";
+      applyPaused(event.paused);
+    } else if (event.t === "paused") {
+      applyPaused(event.on);
     } else if (event.t === "step") {
       const added = { op: event.step.op, selector: event.step.selector || "", value: event.step.value || "", comment: event.step.comment || "" };
       if (IF_OPS.includes(added.op)) return addConditionBlock(added);
@@ -1045,6 +1068,7 @@
     const res = await api("POST", "/api/rec/start", body);
     if (!res.ok) return say(apiError(res));
     rec.replaySteps = replaySteps;
+    applyPaused(false);
     rec.played.clear();
     rec.insert = false;
     rec.after = null;
