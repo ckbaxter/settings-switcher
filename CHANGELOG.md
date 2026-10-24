@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-24
+
 ### Hinzugefügt
 - Bedingungen in Profilen: `if_text` (Seite enthält Text, optional nur in einem Bereich) und `if_visible` (Element ist
   sichtbar) leiten einen Block ein, der mit `end_if` endet. Ein optionales `else` enthält die Schritte für den
