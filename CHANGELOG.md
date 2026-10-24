@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-24
+
 ### Hinzugefügt
 - Recorder: **Aufzeichnung pausieren**. Im pausierten Zustand laufen Klicks, Eingaben und Tasten im Live-Browser,
   werden aber nicht als Schritte eingetragen. So lässt sich die Seite in einen anderen Zustand bringen, ohne dass die
