@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-24
+
 ### Behoben
 - Editor: Bei der Wiedergabe bis zur Stopmarke zeigen Schritte, die ein Wenn-Block überspringt, jetzt „übersprungen“
   statt „abgespielt“. Abgespielt wurde nur, was der Recorder tatsächlich ausgeführt hat. Die Wiedergabe selbst war
