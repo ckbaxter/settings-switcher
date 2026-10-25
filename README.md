@@ -23,6 +23,7 @@ The exit code tells you whether it worked, so you can call it from a scheduler o
 
 - Works with any web interface the Docker host can reach; nothing in it is tied to a specific device
 - Record a profile by clicking, also on a tablet (touch scrolling); continue recording from any step
+- Conditions (if / else): run steps only when a text or element is on the page; pick them by clicking in the live browser ([docs/profile.md](docs/profile.md#bedingungen-wenn--sonst))
 - Checks after the change, so a run only counts as successful when the setting really is in the expected state
 - Optional automatic retry of the whole run if it fails now and then
 - Passwords are never stored in a profile; the browser can only visit the addresses you allow

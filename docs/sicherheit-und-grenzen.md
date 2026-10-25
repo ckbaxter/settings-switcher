@@ -27,6 +27,7 @@ Der Runner hat Zugriff auf das Gerät, deshalb gilt:
 | Browser blockiert jede Anfrage an andere Hosts (auch Redirects, Bilder, Skripte) | Nur das Gerät ist erreichbar |
 | Zugangsdaten nur als `${SWITCHER_USER}` / `${SWITCHER_PASSWORD}` und nur bei `fill` | Passwörter stehen in keinem Profil und im Log nur als „n Zeichen“ |
 | Keine Operation für freies JavaScript | Profile können nur die festen Schritte ausführen |
+| Wenn-Blöcke (`if_text`, `if_visible`) prüfen nur Text oder Sichtbarkeit, enthalten keine Variablen, und die `goto`-Ziele beider Zweige werden vor dem Lauf auf erlaubte Hosts geprüft | Eine Bedingung wählt nur zwischen festen Schritten, sie bringt weder Zugangsdaten noch andere Hosts ins Spiel |
 | Container: `--rm`, `--read-only`, `--cap-drop ALL`, `no-new-privileges`, Speicher-/Prozesslimit, kein Port nach außen, läuft als dein Benutzer | Kleine Angriffsfläche, nichts bleibt zurück |
 | Harte Laufzeitgrenze (`SWITCHER_MAX_RUNTIME_S`, Standard 120 s) und nur ein Lauf gleichzeitig | Hängende Läufe bleiben nicht offen |
 | Editor: Token-Pflicht, Host-Prüfung, optionale IP-Freigabe (`EDITOR_ALLOWED_IPS`), Rate-Limit, strenge CSP, nur lokal gebunden, **keine** Zugangsdaten, startet keine Container | Selbst ein geknackter Editor kann nur Profile ändern |
@@ -61,6 +62,8 @@ Abspielen des Logins mit Anhalten und Selbst-Eintippen im Live-Browser. Was auto
 - Die Profile sind nur so zuverlässig wie ihre Prüfungen; ein Lauf ohne `expect_*` beweist keine Wirkung.
 - Ein Profil kennt nur feste Schritte und eine Anmeldung aus `runner.env`. Seiten mit CAPTCHA oder Einmalcode lassen sich
   nicht automatisieren.
+- Bedingungen prüfen nur, ob ein Text oder Element sichtbar ist, und zwar sofort ohne Warten. Wenn-Blöcke lassen sich nicht
+  verschachteln, Schleifen oder Berechnungen gibt es nicht (siehe [Profile](profile.md#bedingungen-wenn--sonst)).
 - Die Live-Ansicht im Recorder ist eine Folge von Bildern, kein Video.
 
 Bewusst nicht enthalten: Webhook-Endpunkt, Zeitplan, Bearbeiten laufender Aufnahmen. Wie du Profile aus Cron oder einer

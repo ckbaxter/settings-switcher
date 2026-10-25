@@ -6,6 +6,10 @@ Alle nennenswerten Änderungen stehen hier. Das Format folgt
 
 ## [Unreleased]
 
+### Geändert
+- Doku zu Wenn-Blöcken und Aufzeichnungspause ergänzt: Funktionsliste in beiden READMEs, Teststand in `docs/entwicklung.md`,
+  Sicherheits- und Grenzen-Seite sowie ein Eintrag in `docs/fehlersuche.md`.
+
 ## [1.3.0] - 2026-10-24
 
 ### Hinzugefügt
