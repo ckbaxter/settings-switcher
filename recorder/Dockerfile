@@ -1,6 +1,6 @@
 # Editor mit Live-Browser. Build-Kontext ist das Repo-Root (siehe docker-compose.yml).
 # Die Image-Version muss zur Playwright-Version in requirements-dev.txt / runner/requirements.txt passen.
-FROM mcr.microsoft.com/playwright/python:v1.64.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.64.1-noble
 
 WORKDIR /app
 # Der Playwright-Pin kommt aus runner/requirements.txt (eine Quelle, die Dependabot mitpflegt).

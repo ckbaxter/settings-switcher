@@ -1,6 +1,6 @@
 # Build-Kontext ist das Repo-Root:  docker build -f runner/Dockerfile -t settings-switcher-runner .
 # Die Image-Version muss zur Playwright-Version in runner/requirements.txt passen.
-FROM mcr.microsoft.com/playwright/python:v1.64.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.64.1-noble
 
 WORKDIR /app
 COPY runner/requirements.txt ./
