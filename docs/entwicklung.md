@@ -18,11 +18,15 @@ Docker-Attrappe), Editor-Oberfläche im echten Browser (inkl. XSS- und CSP-Prüf
 gegen eine lokale Testseite, der Live-Recorder (Selektoren, Passwortbehandlung, Scrollen, WebSocket-Absicherung) und der
 ganze Weg „im Editor aufzeichnen → speichern → mit dem Runner abspielen“ gegen eine lokale Testseite. Ebenso die
 Stopmarke (Abspielen bis zur Marke, Anhalten bei Login-, TODO- und fehlgeschlagenen Schritten, Einfügen hinter der
-Marke, Bedienung in der Oberfläche), ebenfalls nur gegen die lokale Testseite. Die Prüfung von `EDITOR_ALLOWED_IPS`
+Marke, Bedienung in der Oberfläche), ebenfalls nur gegen die lokale Testseite. Ebenso die Wenn-Blöcke (Schema und
+Strukturprüfung, Läufe des Runners in Chromium mit beiden Zweigen, Wiedergabe bis zur Stopmarke, Aufnahme eines Blocks
+per Klick im Editor mit anschließendem Runner-Lauf) und die Aufzeichnungspause. Die Prüfung von `EDITOR_ALLOWED_IPS`
 steckt in `tests/test_editor.py` und `tests/test_recorder_ws.py`.
 
 Manuell getestet: Docker-Build der Images, `run.sh` mit echtem `docker run` und Aufzeichnen sowie Abspielen gegen eine
-echte Fritzbox 7590 mit FRITZ!OS 8.25 (Portfreigabe an/aus). Der Docker-Teil läuft nicht in den automatischen Tests.
+echte Fritzbox 7590 mit FRITZ!OS 8.25 (Portfreigabe an/aus). Die Wenn-Blöcke (Version 1.2.0) und die Aufzeichnungspause
+(Version 1.3.0) sind zusätzlich im Editor mit dem Live-Browser von Hand ausprobiert. Der Docker-Teil läuft nicht in den
+automatischen Tests.
 
 Noch nicht gegen echtes Docker oder Gerät getestet:
 

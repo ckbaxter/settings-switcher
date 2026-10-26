@@ -23,6 +23,7 @@ Der Exit-Code sagt, ob es geklappt hat. So lässt sich der Aufruf aus einem Zeit
 
 - Funktioniert mit jeder Weboberfläche, die der Docker-Host erreicht; nichts davon ist an ein bestimmtes Gerät gebunden
 - Profil durch Klicken aufzeichnen, auch am Tablet (Scrollen per Wischen); ab einer beliebigen Stelle weiter aufzeichnen
+- Bedingungen (wenn / sonst): Schritte nur ausführen, wenn ein Text oder Element auf der Seite steht; per Klick im Live-Browser wählbar ([docs/profile.md](docs/profile.md#bedingungen-wenn--sonst))
 - Prüfungen nach der Änderung: Ein Lauf gilt nur dann als erfolgreich, wenn die Einstellung wirklich im erwarteten Zustand ist
 - Optional automatische Wiederholung des ganzen Laufs, wenn er ab und zu fehlschlägt
 - Passwörter stehen nie in einem Profil; der Browser darf nur die Adressen besuchen, die du erlaubst
